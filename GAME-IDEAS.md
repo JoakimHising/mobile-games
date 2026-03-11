@@ -19,7 +19,7 @@ Volleyboll/tennis-serve. Swipe för att kasta och slå. Targets på andra sidan 
 ### Bin It ✅ KLAR
 Kasta ihopskrynklat papper i papperskorgar. Vind, rörliga korgar, hinder. Alla fattar konceptet direkt.
 
-### Dart Streak
+### Dart Streak ✅ KLAR
 Flicka pilar mot en darttavla. Bullseye förlänger din streak, missa tavlan och det är game over. Tavlan börjar röra sig, krympa, snurra.
 
 ### Skee-Ball Forever
@@ -54,7 +54,7 @@ Luta för att hälla öl/läsk i glas. Fyll till linjen utan att det rinner öve
 | ✅ | Juggle King | Klar | ⭐⭐⭐⭐⭐ |
 | ✅ | Goalie | Klar | ⭐⭐⭐⭐⭐ |
 | ✅ | Roof Hopper | Klar | ⭐⭐⭐⭐ |
-| 4 | Dart Streak | Enkel | ⭐⭐⭐⭐ |
+| ✅ | Dart Streak | Klar | ⭐⭐⭐⭐ |
 | 5 | Tower Stacker | Enkel | ⭐⭐⭐⭐ |
 | 6 | Perfect Serve | Medium | ⭐⭐⭐ |
 | 7 | Hole in One | Medium | ⭐⭐⭐ |
