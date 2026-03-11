@@ -7,6 +7,7 @@ const GAMES = [
   { id: 'goalie', name: 'GOALIE', desc: 'Dive to save shots on goal', color: THEME.highlight, icon: '🧤', loader: () => import('../games/goalie/game.js') },
   { id: 'roof-hopper', name: 'ROOF HOPPER', desc: 'Jump across rooftops', color: THEME.accentDark, icon: '🏃', loader: () => import('../games/roof-hopper/game.js') },
   { id: 'dart-streak', name: 'DART STREAK', desc: 'Flick darts at the board', color: THEME.fail, icon: '🎯', loader: () => import('../games/dart-streak/game.js') },
+  { id: 'tower-stacker', name: 'TOWER STACKER', desc: 'Stack blocks sky high', color: '#8338EC', icon: '🏗️', loader: () => import('../games/tower-stacker/game.js') },
 ];
 
 export function createMenu(canvasId) {
