@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0A0A1A">
+<title>PERFECT SERVE</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    background: #0A0A1A;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+// ---- ENGINE START (inlined from engine.js) ----
+
+const THEME = {
+  bgDark: '#0A0A1A', bgGrad1: '#0F0C29', bgGrad2: '#1A1A3E',
+  primary: '#FF6B35', primaryLight: '#FF9F1C', primaryDark: '#CC4420',
+  accent: '#00F5D4', accentLight: '#00FFE0', accentDark: '#00BBF9',
+  highlight: '#FEE440', highlightDark: '#E6CC00',
+  success: '#00F5D4', fail: '#FF006E',
+  textWhite: '#FFFFFF', textDim: 'rgba(255,255,255,0.4)',
+  particles: ['#FF006E', '#FB5607', '#FFBE0B', '#00F5D4', '#8338EC', '#FF6B35'],
+  uiBg: 'rgba(10, 10, 26, 0.85)', uiBorder: 'rgba(255, 255, 255, 0.1)',
+  uiButton: '#FF6B35', uiButtonHover: '#FF9F1C',
+};
+
+const Ease = {
+  linear: t => t, inQuad: t => t * t, outQuad: t => t * (2 - t),
+  inOutQuad: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+  outCubic: t => (--t) * t * t + 1,
+  outBack: t => { const s = 1.70158; return (t -= 1) * t * ((s + 1) * t + s) + 1; },
+  outElastic: t => { if (t === 0 || t === 1) return t; return Math.pow(2, -10 * t) * Math.sin((t - 0.1) * 5 * Math.PI) + 1; },
+  outBounce: t => { if (t < 1/2.75) return 7.5625*t*t; if (t < 2/2.75) return 7.5625*(t-=1.5/2.75)*t+0.75; if (t < 2.5/2.75) return 7.5625*(t-=2.25/2.75)*t+0.9375; return 7.5625*(t-=2.625/2.75)*t+0.984375; },
+};
+
+class Pool { constructor(f,r,n=50){this.factory=f;this.resetFn=r;this.pool=[];this.active=[];for(let i=0;i<n;i++)this.pool.push(f());} get(){const o=this.pool.length>0?this.pool.pop():this.factory();this.active.push(o);return o;} release(o){const i=this.active.indexOf(o);if(i!==-1){this.active.splice(i,1);this.resetFn(o);this.pool.push(o);}} releaseAll(){while(this.active.length>0){const o=this.active.pop();this.resetFn(o);this.pool.push(o);}} forEach(fn){for(let i=this.active.length-1;i>=0;i--)fn(this.active[i],i);} get count(){return this.active.length;} }
+
+class ParticleSystem { constructor(){this.pool=new Pool(()=>({x:0,y:0,vx:0,vy:0,size:0,life:0,maxLife:1,color:'#fff',gravity:0,drag:1,type:'circle'}),p=>{p.life=0;},200);} emit(x,y,c,o={}){const{speed=[2,5],size=[2,5],life=[0.5,1.2],colors=THEME.particles,gravity=0,drag=0.98,spread=Math.PI*2,angle=-Math.PI/2,type='circle'}=o;for(let i=0;i<c;i++){const p=this.pool.get();const a=angle+(Math.random()-0.5)*spread;const s=speed[0]+Math.random()*(speed[1]-speed[0]);p.x=x+(Math.random()-0.5)*6;p.y=y+(Math.random()-0.5)*6;p.vx=Math.cos(a)*s;p.vy=Math.sin(a)*s;p.size=size[0]+Math.random()*(size[1]-size[0]);p.maxLife=life[0]+Math.random()*(life[1]-life[0]);p.life=p.maxLife;p.color=colors[Math.floor(Math.random()*colors.length)];p.gravity=gravity;p.drag=drag;p.type=type;}} update(dt){this.pool.forEach(p=>{p.life-=dt;if(p.life<=0){this.pool.release(p);return;}p.vy+=p.gravity*dt;p.vx*=p.drag;p.vy*=p.drag;p.x+=p.vx;p.y+=p.vy;});} draw(ctx){this.pool.forEach(p=>{const a=Math.max(0,p.life/p.maxLife);const ss=0.3+a*0.7;ctx.globalAlpha=a;if(p.type==='circle'){ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x,p.y,p.size*ss,0,Math.PI*2);ctx.fill();}else if(p.type==='square'){ctx.fillStyle=p.color;const s=p.size*ss;ctx.fillRect(p.x-s,p.y-s,s*2,s*2);}else if(p.type==='star'){ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=8;drawStar(ctx,p.x,p.y,5,p.size*ss,p.size*ss*0.5);ctx.fill();}});ctx.shadowBlur=0;ctx.globalAlpha=1;} clear(){this.pool.releaseAll();} }
+
+function drawStar(ctx,cx,cy,sp,oR,iR){let r=-Math.PI/2;const s=Math.PI/sp;ctx.beginPath();for(let i=0;i<sp*2;i++){const rad=i%2===0?oR:iR;const x=cx+Math.cos(r)*rad;const y=cy+Math.sin(r)*rad;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);r+=s;}ctx.closePath();}
+
+class Juice { constructor(){this.shakeAmount=0;this.shakeDecay=0.9;this.flashAlpha=0;this.flashColor='#fff';this.slowMotion=1;this.slowMotionTarget=1;} shake(a=8){this.shakeAmount=Math.max(this.shakeAmount,a);} flash(c='#fff',a=0.3){this.flashColor=c;this.flashAlpha=a;} slowMo(f=0.2,d=0.3){this.slowMotion=f;this.slowMotionTarget=1;this._slowMoDuration=d;this._slowMoTimer=0;} update(dt){if(this.shakeAmount>0){this.shakeAmount*=this.shakeDecay;if(this.shakeAmount<0.5)this.shakeAmount=0;}if(this.flashAlpha>0){this.flashAlpha-=dt*3;if(this.flashAlpha<0)this.flashAlpha=0;}if(this.slowMotion<this.slowMotionTarget){this._slowMoTimer+=dt;if(this._slowMoTimer>=this._slowMoDuration)this.slowMotion=1;else this.slowMotion+=(1-this.slowMotion)*dt*3;}} applyShake(ctx){if(this.shakeAmount>0)ctx.translate((Math.random()-0.5)*this.shakeAmount,(Math.random()-0.5)*this.shakeAmount);} drawFlash(ctx,w,h){if(this.flashAlpha>0){ctx.fillStyle=this.flashColor;ctx.globalAlpha=this.flashAlpha;ctx.fillRect(0,0,w,h);ctx.globalAlpha=1;}} getTimeScale(){return this.slowMotion;} }
+
+class SoundManager { constructor(){this.ctx=null;this.enabled=true;this.volume=0.3;this._initialized=false;} init(){if(this._initialized)return;try{this.ctx=new(window.AudioContext||window.webkitAudioContext)();this._initialized=true;}catch(e){this.enabled=false;}} _play(f,t,d,v=1,s=0){if(!this.enabled||!this.ctx)return;if(this.ctx.state==='suspended')this.ctx.resume();const o=this.ctx.createOscillator();const g=this.ctx.createGain();o.type=t;o.frequency.setValueAtTime(f,this.ctx.currentTime);if(s)o.frequency.exponentialRampToValueAtTime(Math.max(f+s,1),this.ctx.currentTime+d);g.gain.setValueAtTime(this.volume*v,this.ctx.currentTime);g.gain.exponentialRampToValueAtTime(0.001,this.ctx.currentTime+d);o.connect(g);g.connect(this.ctx.destination);o.start();o.stop(this.ctx.currentTime+d);} throw(){this._play(220,'sine',0.15,0.4,200);} score(){this._play(523,'sine',0.1,0.5);setTimeout(()=>this._play(659,'sine',0.1,0.5),80);setTimeout(()=>this._play(784,'sine',0.15,0.5),160);} combo(l){const b=523+l*60;this._play(b,'sine',0.1,0.5);setTimeout(()=>this._play(b*1.25,'sine',0.1,0.5),60);setTimeout(()=>this._play(b*1.5,'sine',0.2,0.6),120);} miss(){this._play(200,'sawtooth',0.2,0.3,-100);} tap(){this._play(800,'sine',0.05,0.2);} gameOver(){this._play(400,'sawtooth',0.15,0.4,-80);setTimeout(()=>this._play(300,'sawtooth',0.15,0.4,-80),150);setTimeout(()=>this._play(200,'sawtooth',0.3,0.4,-100),300);} newBest(){for(let i=0;i<5;i++)setTimeout(()=>this._play(523+i*80,'sine',0.12,0.4),i*80);} click(){this._play(600,'sine',0.04,0.15);} }
+
+class TweenManager { constructor(){this.tweens=[];} add(t,p,d,e=Ease.outCubic,c=null){const tw={target:t,startProps:{},endProps:p,duration:d,elapsed:0,ease:e,onComplete:c};for(const k in p)tw.startProps[k]=t[k];this.tweens.push(tw);return tw;} update(dt){for(let i=this.tweens.length-1;i>=0;i--){const t=this.tweens[i];t.elapsed+=dt;const p=Math.min(t.elapsed/t.duration,1);const ep=t.ease(p);for(const k in t.endProps)t.target[k]=t.startProps[k]+(t.endProps[k]-t.startProps[k])*ep;if(p>=1){this.tweens.splice(i,1);if(t.onComplete)t.onComplete();}}} clear(){this.tweens=[];} }
+
+class FloatingTextManager { constructor(){this.pool=new Pool(()=>({x:0,y:0,text:'',color:'#fff',size:24,life:0,maxLife:1,vy:-40,scale:1,glow:true}),t=>{t.life=0;},30);} spawn(x,y,text,o={}){const t=this.pool.get();t.x=x;t.y=y;t.text=text;t.color=o.color||THEME.success;t.size=o.size||24;t.maxLife=o.duration||1;t.life=t.maxLife;t.vy=o.vy||-50;t.scale=o.scale||1;t.glow=o.glow!==false;return t;} update(dt){this.pool.forEach(t=>{t.life-=dt;if(t.life<=0){this.pool.release(t);return;}t.y+=t.vy*dt;});} draw(ctx){this.pool.forEach(t=>{const a=Math.max(0,t.life/t.maxLife);const sc=t.scale*(0.8+Ease.outBack(1-a)*0.4);ctx.globalAlpha=a;ctx.fillStyle=t.color;if(t.glow){ctx.shadowColor=t.color;ctx.shadowBlur=15;}ctx.font=`bold ${t.size*sc}px 'Arial Black','Impact',sans-serif`;ctx.textAlign='center';ctx.fillText(t.text,t.x,t.y);ctx.shadowBlur=0;});ctx.globalAlpha=1;} clear(){this.pool.releaseAll();} }
+
+class InputHandler { constructor(c,cw,ch){this.canvas=c;this.cw=cw;this.ch=ch;this.isDragging=false;this.dragStart={x:0,y:0};this.dragCurrent={x:0,y:0};this._callbacks={tap:[],drag_start:[],drag_move:[],drag_end:[]};this._bindEvents();} on(e,cb){if(this._callbacks[e])this._callbacks[e].push(cb);} _emit(e,d){this._callbacks[e].forEach(cb=>cb(d));} _getPos(e){const r=this.canvas.getBoundingClientRect();const sx=this.cw/r.width;const sy=this.ch/r.height;const t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*sx,y:(t.clientY-r.top)*sy};} _bindEvents(){const onS=e=>{if(e.touches)e.preventDefault();const p=this._getPos(e);this.isDragging=true;this.dragStart={...p};this.dragCurrent={...p};this._emit('drag_start',{x:p.x,y:p.y});};const onM=e=>{if(!this.isDragging)return;if(e.touches)e.preventDefault();const p=this._getPos(e);this.dragCurrent={...p};this._emit('drag_move',{x:p.x,y:p.y,dx:p.x-this.dragStart.x,dy:p.y-this.dragStart.y,startX:this.dragStart.x,startY:this.dragStart.y});};const onE=e=>{if(!this.isDragging)return;if(e.touches)e.preventDefault();this.isDragging=false;const dx=this.dragCurrent.x-this.dragStart.x;const dy=this.dragCurrent.y-this.dragStart.y;const d=Math.sqrt(dx*dx+dy*dy);if(d<10)this._emit('tap',{x:this.dragStart.x,y:this.dragStart.y});this._emit('drag_end',{x:this.dragCurrent.x,y:this.dragCurrent.y,dx,dy,startX:this.dragStart.x,startY:this.dragStart.y,distance:d,power:Math.min(d/150,1)});};this.canvas.addEventListener('touchstart',onS,{passive:false});this.canvas.addEventListener('touchmove',onM,{passive:false});this.canvas.addEventListener('touchend',onE,{passive:false});this.canvas.addEventListener('mousedown',onS);this.canvas.addEventListener('mousemove',onM);this.canvas.addEventListener('mouseup',onE);window.addEventListener('mouseup',onE);} }
+
+class Background { constructor(w,h){this.w=w;this.h=h;this.stars=[];for(let i=0;i<50;i++)this.stars.push({x:Math.random()*w,y:Math.random()*h,size:Math.random()*2+0.5,speed:Math.random()*0.3+0.1});} draw(ctx,time){const g=ctx.createLinearGradient(0,0,0,this.h);g.addColorStop(0,THEME.bgGrad1);g.addColorStop(1,THEME.bgGrad2);ctx.fillStyle=g;ctx.fillRect(0,0,this.w,this.h);this.stars.forEach(s=>{ctx.globalAlpha=0.2+Math.sin(time*s.speed*5+s.x)*0.3;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();});ctx.globalAlpha=1;} }
+
+class UI { constructor(w,h){this.w=w;this.h=h;this.scoreDisplay=0;this.bestScore=parseInt(localStorage.getItem('arcade_best')||'0');this._buttons=[];} updateScore(ts,dt){if(this.scoreDisplay<ts){this.scoreDisplay+=Math.max(1,(ts-this.scoreDisplay)*dt*10);if(this.scoreDisplay>ts)this.scoreDisplay=ts;}} saveBest(s){if(s>this.bestScore){this.bestScore=s;localStorage.setItem('arcade_best',String(s));return true;}return false;} drawScore(ctx,s,c,t){ctx.fillStyle=THEME.textWhite;ctx.shadowColor=THEME.primary;ctx.shadowBlur=20;ctx.font="bold 56px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText(Math.floor(this.scoreDisplay),this.w/2,80);ctx.shadowBlur=0;if(c>1){const p=1+Math.sin(t*6)*0.08;ctx.fillStyle=THEME.highlight;ctx.shadowColor=THEME.highlight;ctx.shadowBlur=12;ctx.font=`bold ${20*p}px 'Arial Black',Impact,sans-serif`;ctx.fillText(`PERFECT x${c}`,this.w/2,110);ctx.shadowBlur=0;}} drawMenuScreen(ctx,n,t){ctx.fillStyle='rgba(10,10,26,0.6)';ctx.fillRect(0,0,this.w,this.h);const ty=this.h*0.3;const sc=1+Math.sin(t*2)*0.03;ctx.save();ctx.translate(this.w/2,ty);ctx.scale(sc,sc);ctx.fillStyle=THEME.textWhite;ctx.shadowColor=THEME.primary;ctx.shadowBlur=30;ctx.font="bold 40px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText(n,0,0);ctx.shadowBlur=0;ctx.restore();if(this.bestScore>0){ctx.fillStyle=THEME.highlight;ctx.font="bold 18px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText(`BEST: ${this.bestScore}`,this.w/2,ty+45);}const a=0.4+Math.sin(t*3)*0.4;ctx.globalAlpha=a;ctx.fillStyle=THEME.textWhite;ctx.font="600 18px Arial,sans-serif";ctx.fillText('TAP TO PLAY',this.w/2,this.h*0.65);ctx.globalAlpha=1;} drawGameOverScreen(ctx,s,bs,ib,t){ctx.fillStyle='rgba(10,10,26,0.8)';ctx.fillRect(0,0,this.w,this.h);const cy=this.h*0.35;ctx.fillStyle=THEME.fail;ctx.shadowColor=THEME.fail;ctx.shadowBlur=20;ctx.font="bold 42px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText('GAME OVER',this.w/2,cy);ctx.shadowBlur=0;ctx.fillStyle=THEME.textWhite;ctx.font="bold 64px 'Arial Black',Impact,sans-serif";ctx.fillText(s,this.w/2,cy+70);if(ib){const p=1+Math.sin(t*5)*0.1;ctx.fillStyle=THEME.highlight;ctx.shadowColor=THEME.highlight;ctx.shadowBlur=15;ctx.font=`bold ${18*p}px 'Arial Black',Impact,sans-serif`;ctx.fillText('★ NEW BEST! ★',this.w/2,cy+105);ctx.shadowBlur=0;}else{ctx.fillStyle=THEME.textDim;ctx.font="bold 16px Arial,sans-serif";ctx.fillText(`BEST: ${bs}`,this.w/2,cy+105);}this._buttons=[];const btnY=cy+160;const btnW=200,btnH=50,btnR=25;this._drawButton(ctx,this.w/2,btnY,btnW,btnH,btnR,'PLAY AGAIN',THEME.primary);this._buttons.push({x:this.w/2,y:btnY,w:btnW,h:btnH,action:'retry'});const sby=btnY+70;this._drawButton(ctx,this.w/2,sby,btnW,btnH,btnR,'SHARE SCORE',THEME.accentDark);this._buttons.push({x:this.w/2,y:sby,w:btnW,h:btnH,action:'share'});const a=0.3+Math.sin(t*3)*0.2;ctx.globalAlpha=a;ctx.fillStyle=THEME.textDim;ctx.font="400 13px Arial,sans-serif";ctx.fillText('or tap anywhere to retry',this.w/2,sby+55);ctx.globalAlpha=1;} _drawButton(ctx,cx,cy,w,h,r,text,color){ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=15;ctx.beginPath();ctx.moveTo(cx-w/2+r,cy-h/2);ctx.lineTo(cx+w/2-r,cy-h/2);ctx.quadraticCurveTo(cx+w/2,cy-h/2,cx+w/2,cy-h/2+r);ctx.lineTo(cx+w/2,cy+h/2-r);ctx.quadraticCurveTo(cx+w/2,cy+h/2,cx+w/2-r,cy+h/2);ctx.lineTo(cx-w/2+r,cy+h/2);ctx.quadraticCurveTo(cx-w/2,cy+h/2,cx-w/2,cy+h/2-r);ctx.lineTo(cx-w/2,cy-h/2+r);ctx.quadraticCurveTo(cx-w/2,cy-h/2,cx-w/2+r,cy-h/2);ctx.closePath();ctx.fill();ctx.shadowBlur=0;ctx.fillStyle=THEME.textWhite;ctx.font="bold 18px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText(text,cx,cy+6);} hitTestButtons(x,y){for(const b of this._buttons)if(x>b.x-b.w/2&&x<b.x+b.w/2&&y>b.y-b.h/2&&y<b.y+b.h/2)return b.action;return null;} shareScore(n,s){const t=`I scored ${s} in ${n}! Can you beat that?`;if(navigator.share)navigator.share({title:n,text:t});else if(navigator.clipboard)navigator.clipboard.writeText(t);} }
+
+function drawGlow(ctx,x,y,r,c){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,c+'40');g.addColorStop(0.5,c+'15');g.addColorStop(1,c+'00');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+function drawRoundedRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+function lerpColor(a,b,t){const ah=parseInt(a.replace('#',''),16);const bh=parseInt(b.replace('#',''),16);const ar=ah>>16,ag=(ah>>8)&0xff,ab=ah&0xff;const br=bh>>16,bg=(bh>>8)&0xff,bb=bh&0xff;return`rgb(${Math.round(ar+(br-ar)*t)},${Math.round(ag+(bg-ag)*t)},${Math.round(ab+(bb-ab)*t)})`;}
+
+class ArcadeEngine { constructor(id,cfg={}){this.canvas=document.getElementById(id);this.ctx=this.canvas.getContext('2d');this.config=cfg;this.W=cfg.width||400;this.H=cfg.height||700;this.canvas.width=this.W;this.canvas.height=this.H;this._resize();window.addEventListener('resize',()=>this._resize());this.particles=new ParticleSystem();this.juice=new Juice();this.sound=new SoundManager();this.tweens=new TweenManager();this.floatingText=new FloatingTextManager();this.input=new InputHandler(this.canvas,this.W,this.H);this.bg=new Background(this.W,this.H);this.ui=new UI(this.W,this.H);this.state='menu';this.score=0;this.combo=0;this.time=0;this.gameName=cfg.name||'ARCADE';this._storageKey='arcade_best_'+this.gameName.toLowerCase().replace(/\s/g,'_');this.ui.bestScore=parseInt(localStorage.getItem(this._storageKey)||'0');this._lastTime=0;this._running=false;this.input.on('tap',d=>this._onTap(d));this.input.on('drag_start',d=>this._onInput('drag_start',d));this.input.on('drag_move',d=>this._onInput('drag_move',d));this.input.on('drag_end',d=>this._onInput('drag_end',d));} _resize(){const s=Math.min(window.innerWidth/this.W,window.innerHeight/this.H,1);this.canvas.style.width=this.W*s+'px';this.canvas.style.height=this.H*s+'px';} start(){this._running=true;requestAnimationFrame(t=>this._loop(t));} setState(ns){const os=this.state;this.state=ns;if(ns==='playing'){this.score=0;this.combo=0;this.ui.scoreDisplay=0;this.particles.clear();this.floatingText.clear();this.tweens.clear();}if(ns==='gameover'){this._isNewBest=this.ui.saveBest(this.score);localStorage.setItem(this._storageKey,String(this.ui.bestScore));this.sound.gameOver();if(this._isNewBest){setTimeout(()=>this.sound.newBest(),400);this.juice.flash(THEME.highlight,0.2);}}if(this.config.onStateChange)this.config.onStateChange(ns,os);} addScore(a=1){this.score+=a;this.combo++;if(this.combo>2)this.sound.combo(this.combo);else this.sound.score();} resetCombo(){this.combo=0;} _onTap(d){this.sound.init();if(this.state==='menu'){this.setState('playing');if(this.config.onInput)this.config.onInput('tap',d,this);return;}if(this.state==='gameover'){const a=this.ui.hitTestButtons(d.x,d.y);if(a==='share'){this.ui.shareScore(this.gameName,this.score);return;}this.setState('playing');if(this.config.onStateChange)this.config.onStateChange('playing','gameover');return;}if(this.config.onInput)this.config.onInput('tap',d,this);} _onInput(t,d){this.sound.init();if(this.state==='playing'&&this.config.onInput)this.config.onInput(t,d,this);} _loop(ts){if(!this._running)return;const rawDt=Math.min((ts-this._lastTime)/1000,0.05);this._lastTime=ts;const dt=rawDt*this.juice.getTimeScale();this.time+=dt;this.juice.update(rawDt);this.tweens.update(dt);this.particles.update(dt);this.floatingText.update(dt);this.ui.updateScore(this.score,dt);if(this.state==='playing'&&this.config.onUpdate)this.config.onUpdate(dt,this);const ctx=this.ctx;ctx.save();this.juice.applyShake(ctx);this.bg.draw(ctx,this.time);if(this.config.onDraw)this.config.onDraw(ctx,this);this.particles.draw(ctx);this.floatingText.draw(ctx);if(this.state==='playing')this.ui.drawScore(ctx,this.score,this.combo,this.time);this.juice.drawFlash(ctx,this.W,this.H);if(this.state==='menu')this.ui.drawMenuScreen(ctx,this.gameName,this.time);else if(this.state==='gameover')this.ui.drawGameOverScreen(ctx,this.score,this.ui.bestScore,this._isNewBest,this.time);ctx.restore();requestAnimationFrame(t=>this._loop(t));} }
+
+// ---- ENGINE END ----
+
+// ============================================================
+// PERFECT SERVE — Toss and serve tennis balls at targets
+// ============================================================
+
+const W = 400, H = 700;
+
+// Ball state
+let ball = null;
+let targets = [];
+let net = { y: 280, h: 8 };
+let gameActive = false;
+let showInstruction = true;
+let servesHit = 0;
+let swipePhase = 'toss'; // 'toss' -> 'hit' -> 'flying'
+
+// Court colors
+const COURT_COLOR = '#1a6a2a';
+const COURT_LINE = 'rgba(255,255,255,0.6)';
+
+function spawnTargets() {
+  targets = [];
+  const count = 1 + Math.floor(servesHit / 5);
+  const maxTargets = Math.min(count, 3);
+  for (let i = 0; i < maxTargets; i++) {
+    const size = Math.max(20, 45 - servesHit * 1.2);
+    targets.push({
+      x: 80 + Math.random() * (W - 160),
+      y: 60 + Math.random() * 160,
+      radius: size,
+      moveSpeed: servesHit > 3 ? (0.5 + Math.random() * Math.min(servesHit * 0.15, 2)) : 0,
+      moveAngle: Math.random() * Math.PI * 2,
+      hit: false,
+    });
+  }
+}
+
+function resetBall() {
+  ball = { x: W / 2, y: H - 160, vx: 0, vy: 0, radius: 10, tossY: 0, shadow: 1, scale: 1 };
+  swipePhase = 'toss';
+}
+
+function tossBall(engine) {
+  swipePhase = 'hit';
+  ball.tossY = ball.y;
+  engine.tweens.add(ball, { y: ball.y - 120, scale: 1.15 }, 0.4, Ease.outQuad, () => {
+    // If player didn't swipe in time, ball falls
+    if (swipePhase === 'hit') {
+      setTimeout(() => {
+        if (swipePhase === 'hit') {
+          // Missed the hit window
+          swipePhase = 'toss';
+          engine.tweens.add(ball, { y: H - 160, scale: 1 }, 0.3, Ease.inQuad);
+        }
+      }, 800);
+    }
+  });
+  engine.sound.tap();
+}
+
+function hitBall(dx, dy, power, engine) {
+  if (swipePhase !== 'hit') return;
+  swipePhase = 'flying';
+
+  // Direction toward top of court, influenced by swipe
+  const angle = Math.atan2(-1, dx * 0.003); // mostly upward
+  const speed = 400 + power * 300;
+  ball.vx = dx * 1.5;
+  ball.vy = -speed;
+  engine.sound.throw();
+  engine.juice.shake(3);
+}
+
+function checkTargetHits(engine) {
+  if (!ball || swipePhase !== 'flying') return;
+  for (const t of targets) {
+    if (t.hit) continue;
+    const dx = ball.x - t.x;
+    const dy = ball.y - t.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < t.radius + ball.radius) {
+      t.hit = true;
+      engine.addScore(1);
+      servesHit++;
+
+      // Center hit bonus
+      if (dist < t.radius * 0.3) {
+        engine.addScore(2);
+        engine.juice.shake(8);
+        engine.juice.slowMo(0.2, 0.25);
+        engine.floatingText.spawn(t.x, t.y - 20, 'ACE!', { color: THEME.highlight, size: 32, duration: 1.0 });
+        engine.particles.emit(t.x, t.y, 20, { speed: [4, 8], size: [3, 6], life: [0.5, 1.0], colors: [THEME.highlight, THEME.primary, '#fff'], gravity: 50, type: 'star' });
+      } else {
+        engine.juice.shake(4);
+        engine.floatingText.spawn(t.x, t.y - 15, '+1', { color: THEME.accent, size: 22, duration: 0.7 });
+        engine.particles.emit(t.x, t.y, 10, { speed: [2, 5], size: [2, 4], life: [0.3, 0.7], colors: [THEME.accent, THEME.accentLight], gravity: 40 });
+      }
+    }
+  }
+}
+
+function allTargetsHit() {
+  return targets.length > 0 && targets.every(t => t.hit);
+}
+
+// Milestone
+function checkMilestone(engine) {
+  if (servesHit > 0 && servesHit % 10 === 0) {
+    engine.juice.shake(10); engine.juice.flash(THEME.highlight, 0.1);
+    engine.floatingText.spawn(200, 350, `${servesHit} ACES!`, { color: THEME.accent, size: 36, duration: 1.5 });
+    engine.addScore(5);
+    engine.particles.emit(200, 300, 20, { speed: [3, 7], size: [3, 6], life: [0.5, 1.2], colors: THEME.particles, gravity: 40, type: 'star' });
+  }
+}
+
+function drawCourt(ctx) {
+  // Far court (top half)
+  ctx.fillStyle = COURT_COLOR;
+  ctx.fillRect(30, 30, W - 60, net.y - 30);
+
+  // Court lines
+  ctx.strokeStyle = COURT_LINE;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(30, 30, W - 60, net.y - 30);
+  // Center line
+  ctx.beginPath();
+  ctx.moveTo(W / 2, 30);
+  ctx.lineTo(W / 2, net.y);
+  ctx.stroke();
+  // Service line
+  ctx.beginPath();
+  ctx.moveTo(30, 150);
+  ctx.lineTo(W - 30, 150);
+  ctx.stroke();
+
+  // Net
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillRect(20, net.y, W - 40, net.h);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  // Net pattern
+  for (let x = 25; x < W - 25; x += 12) {
+    ctx.fillRect(x, net.y - 30, 1, 30);
+  }
+
+  // Near court (bottom half — player side)
+  ctx.fillStyle = '#1a5a22';
+  ctx.fillRect(30, net.y + net.h, W - 60, H - net.y - net.h - 60);
+  ctx.strokeStyle = COURT_LINE;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(30, net.y + net.h, W - 60, H - net.y - net.h - 60);
+}
+
+function drawTargets(ctx, engine) {
+  targets.forEach(t => {
+    if (t.hit) return;
+    const pulse = 1 + Math.sin(engine.time * 4) * 0.05;
+
+    // Target circle
+    ctx.strokeStyle = THEME.fail;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.radius * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner ring
+    ctx.strokeStyle = THEME.primary;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.radius * 0.5 * pulse, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Center dot
+    ctx.fillStyle = THEME.highlight;
+    ctx.shadowColor = THEME.highlight;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.radius * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Glow
+    drawGlow(ctx, t.x, t.y, t.radius * 1.5, THEME.fail);
+  });
+}
+
+function drawBall(ctx) {
+  if (!ball) return;
+  // Shadow
+  const shadowScale = Math.max(0.3, ball.shadow);
+  ctx.globalAlpha = 0.3 * shadowScale;
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.ellipse(ball.x, H - 100, ball.radius * shadowScale, ball.radius * 0.4 * shadowScale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // Ball
+  const r = ball.radius * ball.scale;
+  ctx.fillStyle = '#ccff00';
+  ctx.shadowColor = '#ccff00';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Tennis ball seam
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(ball.x - r * 0.2, ball.y, r * 0.7, -0.8, 0.8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(ball.x + r * 0.2, ball.y, r * 0.7, Math.PI - 0.8, Math.PI + 0.8);
+  ctx.stroke();
+}
+
+function drawPhaseHint(ctx, engine) {
+  if (!gameActive || swipePhase === 'flying') return;
+  const alpha = 0.3 + Math.sin(engine.time * 3) * 0.2;
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = THEME.textWhite;
+  ctx.font = "600 16px Arial, sans-serif";
+  ctx.textAlign = 'center';
+  if (swipePhase === 'toss' && showInstruction) {
+    ctx.fillText('TAP TO TOSS', W / 2, H - 60);
+  } else if (swipePhase === 'hit') {
+    ctx.fillText('SWIPE UP TO SERVE!', W / 2, H - 60);
+  }
+  ctx.globalAlpha = 1;
+}
+
+const game = new ArcadeEngine('game', {
+  name: 'PERFECT SERVE', width: W, height: H,
+
+  onStateChange(newState) {
+    if (newState === 'playing') {
+      servesHit = 0;
+      gameActive = true;
+      showInstruction = true;
+      resetBall();
+      spawnTargets();
+    }
+  },
+
+  onInput(type, data, engine) {
+    if (!gameActive) return;
+
+    if (type === 'tap' && swipePhase === 'toss') {
+      showInstruction = false;
+      tossBall(engine);
+    }
+
+    if (type === 'drag_end' && swipePhase === 'hit' && data.dy < -20 && data.distance > 30) {
+      hitBall(data.dx, data.dy, data.power, engine);
+    }
+  },
+
+  onUpdate(dt, engine) {
+    if (!gameActive) return;
+
+    // Move targets
+    targets.forEach(t => {
+      if (t.hit || t.moveSpeed === 0) return;
+      t.x += Math.cos(t.moveAngle) * t.moveSpeed * 60 * dt;
+      t.y += Math.sin(t.moveAngle) * t.moveSpeed * 30 * dt;
+      // Bounce
+      if (t.x < 60 || t.x > W - 60) t.moveAngle = Math.PI - t.moveAngle;
+      if (t.y < 50 || t.y > net.y - 20) t.moveAngle = -t.moveAngle;
+      t.x = Math.max(60, Math.min(W - 60, t.x));
+      t.y = Math.max(50, Math.min(net.y - 20, t.y));
+    });
+
+    if (swipePhase === 'flying' && ball) {
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+      ball.vx *= 0.99;
+      ball.shadow = Math.max(0, 1 - Math.abs(ball.y - (H - 160)) / 300);
+      ball.scale = 0.6 + ball.shadow * 0.4;
+
+      checkTargetHits(engine);
+
+      // Ball off screen or hit net
+      if (ball.y < -30 || ball.x < -30 || ball.x > W + 30) {
+        if (allTargetsHit()) {
+          checkMilestone(engine);
+          resetBall();
+          spawnTargets();
+        } else {
+          // Missed — game over
+          gameActive = false;
+          engine.sound.miss();
+          engine.juice.shake(6);
+          engine.juice.flash(THEME.fail, 0.2);
+          setTimeout(() => engine.setState('gameover'), 400);
+        }
+      }
+
+      // Hit the net
+      if (ball.y > net.y - 5 && ball.y < net.y + net.h + 5 && ball.vy < 0) {
+        // Ball hits net from player side going up — it should clear net
+        // Actually net is between courts, ball going up should pass over
+      }
+
+      // Ball going past net.y means it crossed — check if going down past net
+      if (ball.y > net.y + net.h && ball.vy > 0) {
+        // Ball came back down on player side — fault
+        gameActive = false;
+        engine.sound.miss();
+        engine.juice.shake(4);
+        engine.juice.flash(THEME.fail, 0.15);
+        setTimeout(() => engine.setState('gameover'), 400);
+      }
+
+      // All targets hit while ball still in play
+      if (allTargetsHit() && ball.y < net.y) {
+        checkMilestone(engine);
+        resetBall();
+        spawnTargets();
+      }
+    }
+  },
+
+  onDraw(ctx, engine) {
+    drawCourt(ctx);
+    drawTargets(ctx, engine);
+    drawBall(ctx);
+    drawPhaseHint(ctx, engine);
+  },
+});
+
+game.start();
+</script>
+</body>
+</html>
