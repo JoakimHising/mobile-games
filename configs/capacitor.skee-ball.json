@@ -1,0 +1,7 @@
+{
+  "appId": "com.arcadegames.skeeball",
+  "appName": "Skee-Ball Forever",
+  "webDir": "dist/skee-ball",
+  "server": { "androidScheme": "https" },
+  "plugins": { "SplashScreen": { "launchAutoHide": false, "backgroundColor": "#0A0A1A", "showSpinner": false }, "StatusBar": { "style": "DARK", "backgroundColor": "#0A0A1A" } }
+}

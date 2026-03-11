@@ -8,6 +8,11 @@ const GAMES = [
   { id: 'roof-hopper', name: 'ROOF HOPPER', desc: 'Jump across rooftops', color: THEME.accentDark, icon: '🏃', loader: () => import('../games/roof-hopper/game.js') },
   { id: 'dart-streak', name: 'DART STREAK', desc: 'Flick darts at the board', color: THEME.fail, icon: '🎯', loader: () => import('../games/dart-streak/game.js') },
   { id: 'tower-stacker', name: 'TOWER STACKER', desc: 'Stack blocks sky high', color: '#8338EC', icon: '🏗️', loader: () => import('../games/tower-stacker/game.js') },
+  { id: 'perfect-serve', name: 'PERFECT SERVE', desc: 'Serve aces on the court', color: '#1a6a2a', icon: '🎾', loader: () => import('../games/perfect-serve/game.js') },
+  { id: 'hole-in-one', name: 'HOLE IN ONE', desc: 'Sink putts in one shot', color: '#1a6a2a', icon: '⛳', loader: () => import('../games/hole-in-one/game.js') },
+  { id: 'skee-ball', name: 'SKEE-BALL', desc: 'Roll for the high score', color: THEME.primaryDark, icon: '🎳', loader: () => import('../games/skee-ball/game.js') },
+  { id: 'punch-out', name: 'PUNCH OUT', desc: 'Dodge incoming punches', color: THEME.fail, icon: '🥊', loader: () => import('../games/punch-out/game.js') },
+  { id: 'pint-pour', name: 'PINT POUR', desc: 'Pour the perfect pint', color: '#ddaa22', icon: '🍺', loader: () => import('../games/pint-pour/game.js') },
 ];
 
 export function createMenu(canvasId) {
