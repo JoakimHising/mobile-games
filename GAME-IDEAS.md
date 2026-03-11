@@ -27,7 +27,7 @@ Swipe för att rulla en boll uppför rampen. Klassiskt arkad-skee-ball men high-
 
 ## One-Touch Reflex
 
-### Goalie
+### Goalie ✅ KLAR
 Bollar flyger mot mål från alla vinklar. Swipe för att dyka och rädda. Hastighet och skruv ökar. Hur många kan du rädda i rad?
 
 ### Juggle King ✅ KLAR
@@ -52,7 +52,7 @@ Luta för att hälla öl/läsk i glas. Fyll till linjen utan att det rinner öve
 |------|------|---------------------|-----------------|
 | ✅ | Bin It | Klar | ⭐⭐⭐⭐ |
 | ✅ | Juggle King | Klar | ⭐⭐⭐⭐⭐ |
-| 2 | Goalie | Enkel | ⭐⭐⭐⭐⭐ |
+| ✅ | Goalie | Klar | ⭐⭐⭐⭐⭐ |
 | 3 | Roof Hopper | Enkel | ⭐⭐⭐⭐ |
 | 4 | Dart Streak | Enkel | ⭐⭐⭐⭐ |
 | 5 | Tower Stacker | Enkel | ⭐⭐⭐⭐ |

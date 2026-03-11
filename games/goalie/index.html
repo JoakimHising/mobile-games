@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0A0A1A">
+<title>GOALIE</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    background: #0A0A1A;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+// ---- ENGINE START (inlined from engine.js) ----
+
+/**
+ * ARCADE ENGINE v1.0
+ * Shared game engine for casual mobile arcade games.
+ * Bold & Vibrant visual style.
+ */
+
+const THEME = {
+  bgDark: '#0A0A1A', bgGrad1: '#0F0C29', bgGrad2: '#1A1A3E',
+  primary: '#FF6B35', primaryLight: '#FF9F1C', primaryDark: '#CC4420',
+  accent: '#00F5D4', accentLight: '#00FFE0', accentDark: '#00BBF9',
+  highlight: '#FEE440', highlightDark: '#E6CC00',
+  success: '#00F5D4', fail: '#FF006E',
+  textWhite: '#FFFFFF', textDim: 'rgba(255,255,255,0.4)',
+  particles: ['#FF006E', '#FB5607', '#FFBE0B', '#00F5D4', '#8338EC', '#FF6B35'],
+  uiBg: 'rgba(10, 10, 26, 0.85)', uiBorder: 'rgba(255, 255, 255, 0.1)',
+  uiButton: '#FF6B35', uiButtonHover: '#FF9F1C',
+};
+
+const Ease = {
+  linear: t => t, inQuad: t => t * t, outQuad: t => t * (2 - t),
+  inOutQuad: t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+  outCubic: t => (--t) * t * t + 1,
+  outBack: t => { const s = 1.70158; return (t -= 1) * t * ((s + 1) * t + s) + 1; },
+  outElastic: t => { if (t === 0 || t === 1) return t; return Math.pow(2, -10 * t) * Math.sin((t - 0.1) * 5 * Math.PI) + 1; },
+  outBounce: t => { if (t < 1/2.75) return 7.5625*t*t; if (t < 2/2.75) return 7.5625*(t-=1.5/2.75)*t+0.75; if (t < 2.5/2.75) return 7.5625*(t-=2.25/2.75)*t+0.9375; return 7.5625*(t-=2.625/2.75)*t+0.984375; },
+};
+
+class Pool {
+  constructor(factory, reset, initialSize = 50) { this.factory = factory; this.resetFn = reset; this.pool = []; this.active = []; for (let i = 0; i < initialSize; i++) this.pool.push(factory()); }
+  get() { const obj = this.pool.length > 0 ? this.pool.pop() : this.factory(); this.active.push(obj); return obj; }
+  release(obj) { const idx = this.active.indexOf(obj); if (idx !== -1) { this.active.splice(idx, 1); this.resetFn(obj); this.pool.push(obj); } }
+  releaseAll() { while (this.active.length > 0) { const obj = this.active.pop(); this.resetFn(obj); this.pool.push(obj); } }
+  forEach(fn) { for (let i = this.active.length - 1; i >= 0; i--) fn(this.active[i], i); }
+  get count() { return this.active.length; }
+}
+
+class ParticleSystem {
+  constructor() { this.pool = new Pool(() => ({ x:0,y:0,vx:0,vy:0,size:0,life:0,maxLife:1,color:'#fff',gravity:0,drag:1,type:'circle' }), p => { p.life = 0; }, 200); }
+  emit(x, y, count, options = {}) {
+    const { speed=[2,5], size=[2,5], life=[0.5,1.2], colors=THEME.particles, gravity=0, drag=0.98, spread=Math.PI*2, angle=-Math.PI/2, type='circle' } = options;
+    for (let i = 0; i < count; i++) { const p = this.pool.get(); const a = angle + (Math.random()-0.5)*spread; const s = speed[0]+Math.random()*(speed[1]-speed[0]); p.x=x+(Math.random()-0.5)*6; p.y=y+(Math.random()-0.5)*6; p.vx=Math.cos(a)*s; p.vy=Math.sin(a)*s; p.size=size[0]+Math.random()*(size[1]-size[0]); p.maxLife=life[0]+Math.random()*(life[1]-life[0]); p.life=p.maxLife; p.color=colors[Math.floor(Math.random()*colors.length)]; p.gravity=gravity; p.drag=drag; p.type=type; }
+  }
+  update(dt) { this.pool.forEach(p => { p.life-=dt; if(p.life<=0){this.pool.release(p);return;} p.vy+=p.gravity*dt; p.vx*=p.drag; p.vy*=p.drag; p.x+=p.vx; p.y+=p.vy; }); }
+  draw(ctx) { this.pool.forEach(p => { const alpha=Math.max(0,p.life/p.maxLife); const ss=0.3+alpha*0.7; ctx.globalAlpha=alpha; if(p.type==='circle'){ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=6;ctx.beginPath();ctx.arc(p.x,p.y,p.size*ss,0,Math.PI*2);ctx.fill();}else if(p.type==='square'){ctx.fillStyle=p.color;const s=p.size*ss;ctx.fillRect(p.x-s,p.y-s,s*2,s*2);}else if(p.type==='star'){ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=8;drawStar(ctx,p.x,p.y,5,p.size*ss,p.size*ss*0.5);ctx.fill();} }); ctx.shadowBlur=0; ctx.globalAlpha=1; }
+  clear() { this.pool.releaseAll(); }
+}
+
+function drawStar(ctx,cx,cy,spikes,outerR,innerR) { let rot=-Math.PI/2; const step=Math.PI/spikes; ctx.beginPath(); for(let i=0;i<spikes*2;i++){const r=i%2===0?outerR:innerR;const x=cx+Math.cos(rot)*r;const y=cy+Math.sin(rot)*r;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);rot+=step;} ctx.closePath(); }
+
+class Juice {
+  constructor() { this.shakeAmount=0; this.shakeDecay=0.9; this.flashAlpha=0; this.flashColor='#fff'; this.slowMotion=1; this.slowMotionTarget=1; }
+  shake(amount=8) { this.shakeAmount=Math.max(this.shakeAmount,amount); }
+  flash(color='#fff',alpha=0.3) { this.flashColor=color; this.flashAlpha=alpha; }
+  slowMo(factor=0.2,duration=0.3) { this.slowMotion=factor; this.slowMotionTarget=1; this._slowMoDuration=duration; this._slowMoTimer=0; }
+  update(dt) { if(this.shakeAmount>0){this.shakeAmount*=this.shakeDecay;if(this.shakeAmount<0.5)this.shakeAmount=0;} if(this.flashAlpha>0){this.flashAlpha-=dt*3;if(this.flashAlpha<0)this.flashAlpha=0;} if(this.slowMotion<this.slowMotionTarget){this._slowMoTimer+=dt;if(this._slowMoTimer>=this._slowMoDuration)this.slowMotion=1;else this.slowMotion+=(1-this.slowMotion)*dt*3;} }
+  applyShake(ctx) { if(this.shakeAmount>0){ctx.translate((Math.random()-0.5)*this.shakeAmount,(Math.random()-0.5)*this.shakeAmount);} }
+  drawFlash(ctx,w,h) { if(this.flashAlpha>0){ctx.fillStyle=this.flashColor;ctx.globalAlpha=this.flashAlpha;ctx.fillRect(0,0,w,h);ctx.globalAlpha=1;} }
+  getTimeScale() { return this.slowMotion; }
+}
+
+class SoundManager {
+  constructor() { this.ctx=null; this.enabled=true; this.volume=0.3; this._initialized=false; }
+  init() { if(this._initialized)return; try{this.ctx=new(window.AudioContext||window.webkitAudioContext)();this._initialized=true;}catch(e){this.enabled=false;} }
+  _play(freq,type,duration,vol=1,slide=0) { if(!this.enabled||!this.ctx)return; if(this.ctx.state==='suspended')this.ctx.resume(); const osc=this.ctx.createOscillator();const gain=this.ctx.createGain();osc.type=type;osc.frequency.setValueAtTime(freq,this.ctx.currentTime);if(slide)osc.frequency.exponentialRampToValueAtTime(Math.max(freq+slide,1),this.ctx.currentTime+duration);gain.gain.setValueAtTime(this.volume*vol,this.ctx.currentTime);gain.gain.exponentialRampToValueAtTime(0.001,this.ctx.currentTime+duration);osc.connect(gain);gain.connect(this.ctx.destination);osc.start();osc.stop(this.ctx.currentTime+duration); }
+  throw() { this._play(220,'sine',0.15,0.4,200); }
+  score() { this._play(523,'sine',0.1,0.5); setTimeout(()=>this._play(659,'sine',0.1,0.5),80); setTimeout(()=>this._play(784,'sine',0.15,0.5),160); }
+  combo(level) { const b=523+level*60; this._play(b,'sine',0.1,0.5); setTimeout(()=>this._play(b*1.25,'sine',0.1,0.5),60); setTimeout(()=>this._play(b*1.5,'sine',0.2,0.6),120); }
+  miss() { this._play(200,'sawtooth',0.2,0.3,-100); }
+  tap() { this._play(800,'sine',0.05,0.2); }
+  gameOver() { this._play(400,'sawtooth',0.15,0.4,-80); setTimeout(()=>this._play(300,'sawtooth',0.15,0.4,-80),150); setTimeout(()=>this._play(200,'sawtooth',0.3,0.4,-100),300); }
+  newBest() { for(let i=0;i<5;i++)setTimeout(()=>this._play(523+i*80,'sine',0.12,0.4),i*80); }
+  click() { this._play(600,'sine',0.04,0.15); }
+}
+
+class TweenManager {
+  constructor() { this.tweens=[]; }
+  add(target,props,duration,ease=Ease.outCubic,onComplete=null) { const t={target,startProps:{},endProps:props,duration,elapsed:0,ease,onComplete}; for(const k in props)t.startProps[k]=target[k]; this.tweens.push(t); return t; }
+  update(dt) { for(let i=this.tweens.length-1;i>=0;i--){const t=this.tweens[i];t.elapsed+=dt;const p=Math.min(t.elapsed/t.duration,1);const ep=t.ease(p);for(const k in t.endProps)t.target[k]=t.startProps[k]+(t.endProps[k]-t.startProps[k])*ep;if(p>=1){this.tweens.splice(i,1);if(t.onComplete)t.onComplete();}} }
+  clear() { this.tweens=[]; }
+}
+
+class FloatingTextManager {
+  constructor() { this.pool = new Pool(() => ({x:0,y:0,text:'',color:'#fff',size:24,life:0,maxLife:1,vy:-40,scale:1,glow:true}), t=>{t.life=0;}, 30); }
+  spawn(x,y,text,options={}) { const t=this.pool.get(); t.x=x;t.y=y;t.text=text;t.color=options.color||THEME.success;t.size=options.size||24;t.maxLife=options.duration||1;t.life=t.maxLife;t.vy=options.vy||-50;t.scale=options.scale||1;t.glow=options.glow!==false; return t; }
+  update(dt) { this.pool.forEach(t=>{t.life-=dt;if(t.life<=0){this.pool.release(t);return;}t.y+=t.vy*dt;}); }
+  draw(ctx) { this.pool.forEach(t=>{const a=Math.max(0,t.life/t.maxLife);const sc=t.scale*(0.8+Ease.outBack(1-a)*0.4);ctx.globalAlpha=a;ctx.fillStyle=t.color;if(t.glow){ctx.shadowColor=t.color;ctx.shadowBlur=15;}ctx.font=`bold ${t.size*sc}px 'Arial Black','Impact',sans-serif`;ctx.textAlign='center';ctx.fillText(t.text,t.x,t.y);ctx.shadowBlur=0;}); ctx.globalAlpha=1; }
+  clear() { this.pool.releaseAll(); }
+}
+
+class InputHandler {
+  constructor(canvas,cw,ch) { this.canvas=canvas;this.cw=cw;this.ch=ch;this.isDragging=false;this.dragStart={x:0,y:0};this.dragCurrent={x:0,y:0};this._callbacks={tap:[],drag_start:[],drag_move:[],drag_end:[]};this._bindEvents(); }
+  on(event,cb) { if(this._callbacks[event])this._callbacks[event].push(cb); }
+  _emit(event,data) { this._callbacks[event].forEach(cb=>cb(data)); }
+  _getPos(e) { const r=this.canvas.getBoundingClientRect();const sx=this.cw/r.width;const sy=this.ch/r.height;const t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)*sx,y:(t.clientY-r.top)*sy}; }
+  _bindEvents() {
+    const onStart=e=>{if(e.touches)e.preventDefault();const p=this._getPos(e);this.isDragging=true;this.dragStart={...p};this.dragCurrent={...p};this._emit('drag_start',{x:p.x,y:p.y});};
+    const onMove=e=>{if(!this.isDragging)return;if(e.touches)e.preventDefault();const p=this._getPos(e);this.dragCurrent={...p};this._emit('drag_move',{x:p.x,y:p.y,dx:p.x-this.dragStart.x,dy:p.y-this.dragStart.y,startX:this.dragStart.x,startY:this.dragStart.y});};
+    const onEnd=e=>{if(!this.isDragging)return;if(e.touches)e.preventDefault();this.isDragging=false;const dx=this.dragCurrent.x-this.dragStart.x;const dy=this.dragCurrent.y-this.dragStart.y;const dist=Math.sqrt(dx*dx+dy*dy);if(dist<10)this._emit('tap',{x:this.dragStart.x,y:this.dragStart.y});this._emit('drag_end',{x:this.dragCurrent.x,y:this.dragCurrent.y,dx,dy,startX:this.dragStart.x,startY:this.dragStart.y,distance:dist,power:Math.min(dist/150,1)});};
+    this.canvas.addEventListener('touchstart',onStart,{passive:false});this.canvas.addEventListener('touchmove',onMove,{passive:false});this.canvas.addEventListener('touchend',onEnd,{passive:false});
+    this.canvas.addEventListener('mousedown',onStart);this.canvas.addEventListener('mousemove',onMove);this.canvas.addEventListener('mouseup',onEnd);window.addEventListener('mouseup',onEnd);
+  }
+}
+
+class Background {
+  constructor(w,h) { this.w=w;this.h=h;this.stars=[];for(let i=0;i<50;i++)this.stars.push({x:Math.random()*w,y:Math.random()*h,size:Math.random()*2+0.5,speed:Math.random()*0.3+0.1}); }
+  draw(ctx,time) { const g=ctx.createLinearGradient(0,0,0,this.h);g.addColorStop(0,THEME.bgGrad1);g.addColorStop(1,THEME.bgGrad2);ctx.fillStyle=g;ctx.fillRect(0,0,this.w,this.h);this.stars.forEach(s=>{ctx.globalAlpha=0.2+Math.sin(time*s.speed*5+s.x)*0.3;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,Math.PI*2);ctx.fill();});ctx.globalAlpha=1; }
+}
+
+class UI {
+  constructor(w,h) { this.w=w;this.h=h;this.scoreDisplay=0;this.bestScore=parseInt(localStorage.getItem('arcade_best')||'0');this._buttons=[]; }
+  updateScore(ts,dt) { if(this.scoreDisplay<ts){this.scoreDisplay+=Math.max(1,(ts-this.scoreDisplay)*dt*10);if(this.scoreDisplay>ts)this.scoreDisplay=ts;} }
+  saveBest(score) { if(score>this.bestScore){this.bestScore=score;localStorage.setItem('arcade_best',String(score));return true;}return false; }
+  drawScore(ctx,score,combo,time) { ctx.fillStyle=THEME.textWhite;ctx.shadowColor=THEME.primary;ctx.shadowBlur=20;ctx.font="bold 56px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText(Math.floor(this.scoreDisplay),this.w/2,this.h-55);ctx.shadowBlur=0;if(combo>1){const p=1+Math.sin(time*6)*0.08;ctx.fillStyle=THEME.highlight;ctx.shadowColor=THEME.highlight;ctx.shadowBlur=12;ctx.font=`bold ${20*p}px 'Arial Black',Impact,sans-serif`;ctx.fillText(`COMBO x${combo}`,this.w/2,this.h-22);ctx.shadowBlur=0;} }
+  drawMenuScreen(ctx,gameName,time) { ctx.fillStyle='rgba(10,10,26,0.6)';ctx.fillRect(0,0,this.w,this.h);const ty=this.h*0.3;const sc=1+Math.sin(time*2)*0.03;ctx.save();ctx.translate(this.w/2,ty);ctx.scale(sc,sc);ctx.fillStyle=THEME.textWhite;ctx.shadowColor=THEME.primary;ctx.shadowBlur=30;ctx.font="bold 52px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText(gameName,0,0);ctx.shadowBlur=0;ctx.restore();if(this.bestScore>0){ctx.fillStyle=THEME.highlight;ctx.font="bold 18px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText(`BEST: ${this.bestScore}`,this.w/2,ty+45);}const a=0.4+Math.sin(time*3)*0.4;ctx.globalAlpha=a;ctx.fillStyle=THEME.textWhite;ctx.font="600 18px Arial,sans-serif";ctx.fillText('TAP TO PLAY',this.w/2,this.h*0.65);ctx.globalAlpha=1; }
+  drawGameOverScreen(ctx,score,bestScore,isNewBest,time) { ctx.fillStyle='rgba(10,10,26,0.8)';ctx.fillRect(0,0,this.w,this.h);const cy=this.h*0.35;ctx.fillStyle=THEME.fail;ctx.shadowColor=THEME.fail;ctx.shadowBlur=20;ctx.font="bold 42px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText('GAME OVER',this.w/2,cy);ctx.shadowBlur=0;ctx.fillStyle=THEME.textWhite;ctx.font="bold 64px 'Arial Black',Impact,sans-serif";ctx.fillText(score,this.w/2,cy+70);if(isNewBest){const p=1+Math.sin(time*5)*0.1;ctx.fillStyle=THEME.highlight;ctx.shadowColor=THEME.highlight;ctx.shadowBlur=15;ctx.font=`bold ${18*p}px 'Arial Black',Impact,sans-serif`;ctx.fillText('★ NEW BEST! ★',this.w/2,cy+105);ctx.shadowBlur=0;}else{ctx.fillStyle=THEME.textDim;ctx.font="bold 16px Arial,sans-serif";ctx.fillText(`BEST: ${bestScore}`,this.w/2,cy+105);}this._buttons=[];const btnY=cy+160;const btnW=200,btnH=50,btnR=25;this._drawButton(ctx,this.w/2,btnY,btnW,btnH,btnR,'PLAY AGAIN',THEME.primary,time);this._buttons.push({x:this.w/2,y:btnY,w:btnW,h:btnH,action:'retry'});const sby=btnY+70;this._drawButton(ctx,this.w/2,sby,btnW,btnH,btnR,'SHARE SCORE',THEME.accentDark,time);this._buttons.push({x:this.w/2,y:sby,w:btnW,h:btnH,action:'share'});const a=0.3+Math.sin(time*3)*0.2;ctx.globalAlpha=a;ctx.fillStyle=THEME.textDim;ctx.font="400 13px Arial,sans-serif";ctx.fillText('or tap anywhere to retry',this.w/2,sby+55);ctx.globalAlpha=1; }
+  _drawButton(ctx,cx,cy,w,h,r,text,color) { ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=15;ctx.beginPath();ctx.moveTo(cx-w/2+r,cy-h/2);ctx.lineTo(cx+w/2-r,cy-h/2);ctx.quadraticCurveTo(cx+w/2,cy-h/2,cx+w/2,cy-h/2+r);ctx.lineTo(cx+w/2,cy+h/2-r);ctx.quadraticCurveTo(cx+w/2,cy+h/2,cx+w/2-r,cy+h/2);ctx.lineTo(cx-w/2+r,cy+h/2);ctx.quadraticCurveTo(cx-w/2,cy+h/2,cx-w/2,cy+h/2-r);ctx.lineTo(cx-w/2,cy-h/2+r);ctx.quadraticCurveTo(cx-w/2,cy-h/2,cx-w/2+r,cy-h/2);ctx.closePath();ctx.fill();ctx.shadowBlur=0;ctx.fillStyle=THEME.textWhite;ctx.font="bold 18px 'Arial Black',Impact,sans-serif";ctx.textAlign='center';ctx.fillText(text,cx,cy+6); }
+  hitTestButtons(x,y) { for(const b of this._buttons)if(x>b.x-b.w/2&&x<b.x+b.w/2&&y>b.y-b.h/2&&y<b.y+b.h/2)return b.action;return null; }
+  shareScore(gameName,score) { const t=`I scored ${score} in ${gameName}! Can you beat that?`;if(navigator.share)navigator.share({title:gameName,text:t});else if(navigator.clipboard)navigator.clipboard.writeText(t); }
+}
+
+function drawGlow(ctx,x,y,radius,color) { const g=ctx.createRadialGradient(x,y,0,x,y,radius);g.addColorStop(0,color+'40');g.addColorStop(0.5,color+'15');g.addColorStop(1,color+'00');ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill(); }
+function drawRoundedRect(ctx,x,y,w,h,r) { ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath(); }
+function lerpColor(a,b,t) { const ah=parseInt(a.replace('#',''),16);const bh=parseInt(b.replace('#',''),16);const ar=ah>>16,ag=(ah>>8)&0xff,ab=ah&0xff;const br=bh>>16,bg=(bh>>8)&0xff,bb=bh&0xff;const rr=Math.round(ar+(br-ar)*t);const rg=Math.round(ag+(bg-ag)*t);const rb=Math.round(ab+(bb-ab)*t);return`rgb(${rr},${rg},${rb})`; }
+
+class ArcadeEngine {
+  constructor(canvasId,config={}) { this.canvas=document.getElementById(canvasId);this.ctx=this.canvas.getContext('2d');this.config=config;this.W=config.width||400;this.H=config.height||700;this.canvas.width=this.W;this.canvas.height=this.H;this._resize();window.addEventListener('resize',()=>this._resize());this.particles=new ParticleSystem();this.juice=new Juice();this.sound=new SoundManager();this.tweens=new TweenManager();this.floatingText=new FloatingTextManager();this.input=new InputHandler(this.canvas,this.W,this.H);this.bg=new Background(this.W,this.H);this.ui=new UI(this.W,this.H);this.state='menu';this.score=0;this.combo=0;this.time=0;this.gameName=config.name||'ARCADE';this._storageKey='arcade_best_'+this.gameName.toLowerCase().replace(/\s/g,'_');this.ui.bestScore=parseInt(localStorage.getItem(this._storageKey)||'0');this._lastTime=0;this._running=false;this.input.on('tap',d=>this._onTap(d));this.input.on('drag_start',d=>this._onInput('drag_start',d));this.input.on('drag_move',d=>this._onInput('drag_move',d));this.input.on('drag_end',d=>this._onInput('drag_end',d)); }
+  _resize() { const s=Math.min(window.innerWidth/this.W,window.innerHeight/this.H,1);this.canvas.style.width=this.W*s+'px';this.canvas.style.height=this.H*s+'px'; }
+  start() { this._running=true;requestAnimationFrame(t=>this._loop(t)); }
+  setState(ns) { const os=this.state;this.state=ns;if(ns==='playing'){this.score=0;this.combo=0;this.ui.scoreDisplay=0;this.particles.clear();this.floatingText.clear();this.tweens.clear();}if(ns==='gameover'){this._isNewBest=this.ui.saveBest(this.score);localStorage.setItem(this._storageKey,String(this.ui.bestScore));this.sound.gameOver();if(this._isNewBest){setTimeout(()=>this.sound.newBest(),400);this.juice.flash(THEME.highlight,0.2);}}if(this.config.onStateChange)this.config.onStateChange(ns,os); }
+  addScore(amount=1) { this.score+=amount;this.combo++;if(this.combo>2)this.sound.combo(this.combo);else this.sound.score(); }
+  resetCombo() { this.combo=0; }
+  _onTap(data) { this.sound.init();if(this.state==='menu'){this.setState('playing');if(this.config.onInput)this.config.onInput('tap',data,this);return;}if(this.state==='gameover'){const a=this.ui.hitTestButtons(data.x,data.y);if(a==='share'){this.ui.shareScore(this.gameName,this.score);return;}this.setState('playing');if(this.config.onStateChange)this.config.onStateChange('playing','gameover');return;}if(this.config.onInput)this.config.onInput('tap',data,this); }
+  _onInput(type,data) { this.sound.init();if(this.state==='playing'&&this.config.onInput)this.config.onInput(type,data,this); }
+  _loop(timestamp) { if(!this._running)return;const rawDt=Math.min((timestamp-this._lastTime)/1000,0.05);this._lastTime=timestamp;const dt=rawDt*this.juice.getTimeScale();this.time+=dt;this.juice.update(rawDt);this.tweens.update(dt);this.particles.update(dt);this.floatingText.update(dt);this.ui.updateScore(this.score,dt);if(this.state==='playing'&&this.config.onUpdate)this.config.onUpdate(dt,this);const ctx=this.ctx;ctx.save();this.juice.applyShake(ctx);this.bg.draw(ctx,this.time);if(this.config.onDraw)this.config.onDraw(ctx,this);this.particles.draw(ctx);this.floatingText.draw(ctx);if(this.state==='playing')this.ui.drawScore(ctx,this.score,this.combo,this.time);this.juice.drawFlash(ctx,this.W,this.H);if(this.state==='menu')this.ui.drawMenuScreen(ctx,this.gameName,this.time);else if(this.state==='gameover')this.ui.drawGameOverScreen(ctx,this.score,this.ui.bestScore,this._isNewBest,this.time);ctx.restore();requestAnimationFrame(t=>this._loop(t)); }
+}
+
+// ---- ENGINE END ----
+
+// ============================================================
+// GOALIE — Swipe to dive and save shots on goal
+// ============================================================
+
+// Goal dimensions (front view)
+const GOAL = {
+  x: 60,           // left post x
+  y: 160,          // crossbar y
+  w: 280,          // goal width
+  h: 220,          // goal height
+  postW: 8,        // post thickness
+  netDepth: 40,    // perspective net depth
+};
+const GOAL_CX = GOAL.x + GOAL.w / 2; // goal center x
+const GOAL_CY = GOAL.y + GOAL.h / 2; // goal center y
+
+// Keeper state
+let keeper = {
+  x: GOAL_CX,
+  y: GOAL_CY + 40,
+  targetX: GOAL_CX,
+  diveDir: 0,      // -1 left, 0 center, 1 right
+  diveProgress: 0, // 0-1 dive animation
+  diveSpeed: 0,
+  armSpan: 55,     // reach from center
+  bodyW: 30,
+  bodyH: 60,
+  recovering: false,
+  recoverTimer: 0,
+  idleSway: 0,
+};
+
+// Ball state
+let activeBall = null;
+let shotTimer = 0;
+let shotDelay = 1.5;      // time between shots
+let savesCount = 0;
+let shotSpeed = 280;       // base shot speed, increases
+let gameActive = false;
+let showInstruction = true;
+let shotWarningTimer = 0;  // warning flash before shot
+let warningTarget = null;  // where the shot will aim
+
+// Difficulty
+const BASE_SHOT_SPEED = 280;
+const BASE_SHOT_DELAY = 1.5;
+
+// Grass patches for atmosphere
+let grassPatches = [];
+for (let i = 0; i < 20; i++) {
+  grassPatches.push({
+    x: Math.random() * 400,
+    y: GOAL.y + GOAL.h + 10 + Math.random() * 310,
+    size: 2 + Math.random() * 4,
+    sway: Math.random() * Math.PI * 2,
+  });
+}
+
+// Pentagon for soccer ball
+const PENTA_ANGLES = [0, Math.PI * 2 / 5, Math.PI * 4 / 5, Math.PI * 6 / 5, Math.PI * 8 / 5];
+
+function drawPentagon(ctx, cx, cy, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (Math.PI * 2 / 5) * i;
+    const px = cx + Math.cos(a) * r;
+    const py = cy + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+function createShot(engine) {
+  // Pick target zone in goal (left, center-left, center, center-right, right)
+  // and height (low, mid, high)
+  const zones = [-0.85, -0.45, 0, 0.45, 0.85];
+  const heights = [0.7, 0.3, -0.1]; // bottom, mid, top of goal
+  const zoneIdx = Math.floor(Math.random() * zones.length);
+  const heightIdx = Math.floor(Math.random() * heights.length);
+
+  const targetX = GOAL_CX + zones[zoneIdx] * (GOAL.w / 2 - 15);
+  const targetY = GOAL.y + GOAL.h * heights[heightIdx];
+
+  // Ball starts from off-screen bottom (kicker's position)
+  const startAngle = (Math.random() - 0.5) * 0.8; // slight random angle
+  const startX = 200 + Math.sin(startAngle) * 250;
+  const startY = 750;
+
+  // Curve: increases with difficulty
+  const maxCurve = Math.min(savesCount * 4, 120);
+  const curve = (Math.random() - 0.5) * maxCurve;
+
+  const dx = targetX - startX;
+  const dy = targetY - startY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const speed = shotSpeed + Math.random() * 40;
+
+  activeBall = {
+    x: startX,
+    y: startY,
+    startX: startX,
+    startY: startY,
+    targetX: targetX,
+    targetY: targetY,
+    progress: 0,       // 0 to 1
+    speed: speed / dist, // normalized speed
+    curve: curve,
+    radius: 16,
+    rotation: 0,
+    spinRate: (Math.random() - 0.5) * 12,
+    scale: 0.4,        // starts small (far away)
+    shadow: 0.3,
+  };
+
+  // Sound: kick
+  engine.sound.throw();
+
+  return { targetX, targetY };
+}
+
+function checkSave(engine) {
+  if (!activeBall || activeBall.progress < 0.85) return false;
+
+  const ballX = activeBall.x;
+  const ballY = activeBall.y;
+
+  // Keeper hitbox based on dive position
+  const kx = keeper.x;
+  const ky = keeper.y;
+  const reach = keeper.armSpan + keeper.bodyW / 2;
+  const diveExtend = keeper.diveProgress * 40; // extra reach while diving
+
+  // Check if ball is within keeper's reach
+  const dx = ballX - kx;
+  const dy = ballY - ky;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const totalReach = reach + diveExtend + activeBall.radius;
+
+  // Vertical check: keeper covers roughly their body height
+  const verticalReach = keeper.bodyH / 2 + 15;
+  const vertOk = Math.abs(dy) < verticalReach;
+
+  if (dist < totalReach && vertOk) {
+    return true;
+  }
+
+  return false;
+}
+
+function onSave(engine) {
+  savesCount++;
+  engine.addScore(1);
+
+  // Particles at save point
+  engine.particles.emit(activeBall.x, activeBall.y, 15, {
+    speed: [3, 7],
+    size: [2, 5],
+    life: [0.3, 0.8],
+    colors: [THEME.accent, THEME.accentLight, THEME.highlight],
+    gravity: 80,
+    spread: Math.PI,
+    angle: -Math.PI / 2,
+    type: engine.combo > 5 ? 'star' : 'circle',
+  });
+
+  // Save text
+  const saveTexts = ['SAVE!', 'GREAT!', 'SUPERB!', 'HEROIC!', 'UNREAL!'];
+  const textIdx = Math.min(Math.floor(engine.combo / 3), saveTexts.length - 1);
+  const textColor = engine.combo > 5 ? THEME.highlight : engine.combo > 2 ? THEME.accent : THEME.success;
+  engine.floatingText.spawn(activeBall.x, activeBall.y - 30, saveTexts[textIdx], {
+    color: textColor,
+    size: 24 + Math.min(engine.combo * 2, 12),
+    duration: 0.9,
+  });
+
+  // Near-miss: ball was close to edge of reach
+  const kx = keeper.x;
+  const dx = Math.abs(activeBall.x - kx);
+  if (dx > keeper.armSpan + 20) {
+    engine.juice.slowMo(0.3, 0.2);
+    engine.floatingText.spawn(200, 250, 'CLUTCH!', {
+      color: THEME.highlight,
+      size: 30,
+      duration: 1.0,
+    });
+    engine.addScore(1); // bonus
+  }
+
+  // Shake
+  engine.juice.shake(5 + Math.min(engine.combo, 10));
+
+  // Milestone every 10 saves
+  if (savesCount > 0 && savesCount % 10 === 0) {
+    engine.juice.shake(12);
+    engine.juice.flash(THEME.highlight, 0.15);
+    engine.floatingText.spawn(200, 200, `${savesCount} SAVES!`, {
+      color: THEME.accent,
+      size: 36,
+      duration: 1.5,
+    });
+    engine.addScore(5);
+    engine.particles.emit(200, 300, 25, {
+      speed: [3, 8],
+      size: [3, 6],
+      life: [0.6, 1.5],
+      colors: THEME.particles,
+      gravity: 50,
+      type: 'star',
+    });
+  }
+
+  // Difficulty scaling
+  shotSpeed = BASE_SHOT_SPEED + Math.min(savesCount * 8, 300);
+  shotDelay = Math.max(0.6, BASE_SHOT_DELAY - savesCount * 0.04);
+
+  activeBall = null;
+  shotTimer = 0;
+  shotWarningTimer = 0;
+}
+
+function onGoal(engine) {
+  // Ball got past keeper — game over
+  engine.sound.miss();
+  engine.juice.shake(8);
+  engine.juice.flash(THEME.fail, 0.2);
+  engine.juice.slowMo(0.15, 0.5);
+
+  // Net ripple particles
+  engine.particles.emit(activeBall.x, activeBall.y, 20, {
+    speed: [1, 4],
+    size: [2, 4],
+    life: [0.3, 0.8],
+    colors: [THEME.fail, '#fff'],
+    gravity: 40,
+    spread: Math.PI,
+    angle: Math.PI / 2,
+  });
+
+  gameActive = false;
+  setTimeout(() => engine.setState('gameover'), 500);
+}
+
+// ============================================================
+// DRAWING FUNCTIONS
+// ============================================================
+
+function drawField(ctx, engine) {
+  // Green field gradient below goal
+  const fieldTop = GOAL.y + GOAL.h;
+  const fieldGrad = ctx.createLinearGradient(0, fieldTop, 0, 700);
+  fieldGrad.addColorStop(0, '#1a4a2a');
+  fieldGrad.addColorStop(1, '#0d2e18');
+  ctx.fillStyle = fieldGrad;
+  ctx.fillRect(0, fieldTop, 400, 700 - fieldTop);
+
+  // Field line (6-yard box)
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(40, fieldTop + 5);
+  ctx.lineTo(40, fieldTop + 80);
+  ctx.lineTo(360, fieldTop + 80);
+  ctx.lineTo(360, fieldTop + 5);
+  ctx.stroke();
+
+  // Penalty spot
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath();
+  ctx.arc(200, fieldTop + 150, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Grass detail
+  grassPatches.forEach(g => {
+    const sway = Math.sin(engine.time * 2 + g.sway) * 3;
+    ctx.strokeStyle = 'rgba(100,200,100,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y);
+    ctx.lineTo(g.x + sway, g.y - g.size);
+    ctx.stroke();
+  });
+}
+
+function drawGoal(ctx, engine) {
+  const { x, y, w, h, postW, netDepth } = GOAL;
+
+  // Net (perspective lines)
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  // Vertical net lines
+  for (let i = 0; i <= 10; i++) {
+    const nx = x + (w / 10) * i;
+    ctx.beginPath();
+    ctx.moveTo(nx, y);
+    ctx.lineTo(nx + (nx < 200 ? -netDepth : nx > 200 ? netDepth : 0) * 0.3, y - netDepth * 0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(nx, y + h);
+    ctx.lineTo(nx, y);
+    ctx.stroke();
+  }
+  // Horizontal net lines
+  for (let i = 0; i <= 8; i++) {
+    const ny = y + (h / 8) * i;
+    ctx.beginPath();
+    ctx.moveTo(x, ny);
+    ctx.lineTo(x + w, ny);
+    ctx.stroke();
+  }
+
+  // Net back panel (subtle)
+  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  ctx.fillRect(x, y, w, h);
+
+  // Goal posts
+  const postGrad = ctx.createLinearGradient(x, y, x + postW, y);
+  postGrad.addColorStop(0, '#FFFFFF');
+  postGrad.addColorStop(0.5, '#E0E0E0');
+  postGrad.addColorStop(1, '#C0C0C0');
+
+  ctx.fillStyle = postGrad;
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 8;
+
+  // Left post
+  ctx.fillRect(x - postW / 2, y, postW, h);
+  // Right post
+  ctx.fillRect(x + w - postW / 2, y, postW, h);
+  // Crossbar
+  ctx.fillRect(x - postW / 2, y - postW / 2, w + postW, postW);
+
+  ctx.shadowBlur = 0;
+}
+
+function drawKeeper(ctx, engine) {
+  const { x, y, diveDir, diveProgress, bodyW, bodyH } = keeper;
+
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Dive rotation
+  const diveAngle = diveDir * diveProgress * 0.8;
+  const diveOffsetX = diveDir * diveProgress * 50;
+  ctx.translate(diveOffsetX, 0);
+  ctx.rotate(diveAngle);
+
+  // Keeper glow
+  const glowColor = engine.combo > 5 ? THEME.highlight : THEME.accent;
+  drawGlow(ctx, 0, 0, 50 + engine.combo * 2, glowColor);
+
+  // Body
+  const bodyGrad = ctx.createLinearGradient(-bodyW / 2, -bodyH / 2, bodyW / 2, bodyH / 2);
+  bodyGrad.addColorStop(0, THEME.primary);
+  bodyGrad.addColorStop(1, THEME.primaryDark);
+  ctx.fillStyle = bodyGrad;
+  drawRoundedRect(ctx, -bodyW / 2, -bodyH / 2, bodyW, bodyH, 8);
+  ctx.fill();
+
+  // Jersey number
+  ctx.fillStyle = THEME.textWhite;
+  ctx.globalAlpha = 0.6;
+  ctx.font = "bold 16px 'Arial Black',Impact,sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('1', 0, 6);
+  ctx.globalAlpha = 1;
+
+  // Head
+  ctx.fillStyle = '#F5C5A3';
+  ctx.beginPath();
+  ctx.arc(0, -bodyH / 2 - 10, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Gloves (arms) — extend outward
+  const armExtend = 20 + diveProgress * 30;
+  const armY = -5;
+
+  // Left glove
+  ctx.fillStyle = THEME.accent;
+  ctx.shadowColor = THEME.accent;
+  ctx.shadowBlur = diveProgress > 0.3 ? 10 : 4;
+  ctx.beginPath();
+  ctx.arc(-bodyW / 2 - armExtend, armY, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Right glove
+  ctx.beginPath();
+  ctx.arc(bodyW / 2 + armExtend, armY, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Arms connecting to gloves
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = THEME.primaryDark;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-bodyW / 2, armY);
+  ctx.lineTo(-bodyW / 2 - armExtend, armY);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bodyW / 2, armY);
+  ctx.lineTo(bodyW / 2 + armExtend, armY);
+  ctx.stroke();
+
+  // Legs
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 6;
+  const legSpread = 8 + diveProgress * 15;
+  ctx.beginPath();
+  ctx.moveTo(-5, bodyH / 2);
+  ctx.lineTo(-legSpread, bodyH / 2 + 20);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(5, bodyH / 2);
+  ctx.lineTo(legSpread, bodyH / 2 + 20);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawBall(ctx, engine) {
+  if (!activeBall) return;
+
+  const b = activeBall;
+
+  // Interpolate position along curve
+  const t = b.progress;
+  const linearX = b.startX + (b.targetX - b.startX) * t;
+  const linearY = b.startY + (b.targetY - b.startY) * t;
+
+  // Add curve (perpendicular to trajectory)
+  const dx = b.targetX - b.startX;
+  const dy = b.targetY - b.startY;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const perpX = -dy / len;
+  const curveAmount = Math.sin(t * Math.PI) * b.curve;
+
+  b.x = linearX + perpX * curveAmount;
+  b.y = linearY;
+
+  // Scale grows as ball approaches (perspective)
+  b.scale = 0.4 + t * 0.6;
+
+  const radius = b.radius * b.scale;
+
+  ctx.save();
+  ctx.translate(b.x, b.y);
+
+  // Trail
+  if (t > 0.1) {
+    const trailLen = 4;
+    for (let i = 1; i <= trailLen; i++) {
+      const tt = Math.max(0, t - i * 0.04);
+      const tx = b.startX + (b.targetX - b.startX) * tt + perpX * Math.sin(tt * Math.PI) * b.curve;
+      const ty = b.startY + (b.targetY - b.startY) * tt;
+      const trailAlpha = (1 - i / trailLen) * 0.2;
+      const trailSize = radius * (1 - i / trailLen) * 0.6;
+      ctx.globalAlpha = trailAlpha;
+      ctx.fillStyle = THEME.primary;
+      ctx.beginPath();
+      ctx.arc(tx - b.x, ty - b.y, trailSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Ball shadow on ground
+  const groundDist = (GOAL.y + GOAL.h) - b.y;
+  if (groundDist > 0 && groundDist < 300) {
+    const shadowAlpha = 0.2 * (1 - groundDist / 300);
+    ctx.globalAlpha = shadowAlpha;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(0, groundDist * 0.3, radius * 0.8, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Danger glow as ball approaches
+  if (t > 0.6) {
+    const dangerAlpha = (t - 0.6) / 0.4;
+    drawGlow(ctx, 0, 0, 35 * b.scale, THEME.fail);
+  }
+
+  // Ball body
+  const scale = b.scale;
+  ctx.scale(scale, scale);
+
+  const ballGrad = ctx.createRadialGradient(-2, -2, 0, 0, 0, b.radius);
+  ballGrad.addColorStop(0, '#FFFFFF');
+  ballGrad.addColorStop(0.7, '#E8E8E8');
+  ballGrad.addColorStop(1, '#C0C0C0');
+  ctx.fillStyle = ballGrad;
+  ctx.shadowColor = THEME.primaryLight;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Pentagon pattern
+  ctx.save();
+  b.rotation += b.spinRate * 0.016;
+  ctx.rotate(b.rotation);
+  ctx.fillStyle = '#222';
+  drawPentagon(ctx, 0, 0, 6);
+  ctx.fill();
+  for (let i = 0; i < PENTA_ANGLES.length; i++) {
+    const a = PENTA_ANGLES[i];
+    ctx.fillStyle = '#333';
+    drawPentagon(ctx, Math.cos(a) * 10, Math.sin(a) * 10, 4);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Specular
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(-3, -4, 4, 3, -0.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawShotWarning(ctx, engine) {
+  if (!warningTarget || shotWarningTimer <= 0) return;
+
+  const alpha = 0.3 + Math.sin(engine.time * 12) * 0.3;
+  ctx.globalAlpha = alpha;
+
+  // Arrow/indicator showing where shot will go
+  const tx = warningTarget.x;
+  const ty = warningTarget.y;
+
+  // Crosshair
+  ctx.strokeStyle = THEME.fail;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = THEME.fail;
+  ctx.shadowBlur = 8;
+  const r = 18;
+  ctx.beginPath();
+  ctx.arc(tx, ty, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(tx - r - 5, ty);
+  ctx.lineTo(tx + r + 5, ty);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(tx, ty - r - 5);
+  ctx.lineTo(tx, ty + r + 5);
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+}
+
+function drawInstruction(ctx, engine) {
+  if (!showInstruction) return;
+
+  const alpha = 0.3 + Math.sin(engine.time * 3) * 0.25;
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = THEME.textWhite;
+  ctx.font = "600 16px Arial, sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('SWIPE TO DIVE', 200, GOAL.y + GOAL.h + 100);
+
+  // Arrow hints
+  ctx.strokeStyle = THEME.textWhite;
+  ctx.lineWidth = 2;
+  // Left arrow
+  ctx.beginPath();
+  ctx.moveTo(140, GOAL.y + GOAL.h + 120);
+  ctx.lineTo(110, GOAL.y + GOAL.h + 120);
+  ctx.lineTo(118, GOAL.y + GOAL.h + 115);
+  ctx.moveTo(110, GOAL.y + GOAL.h + 120);
+  ctx.lineTo(118, GOAL.y + GOAL.h + 125);
+  ctx.stroke();
+  // Right arrow
+  ctx.beginPath();
+  ctx.moveTo(260, GOAL.y + GOAL.h + 120);
+  ctx.lineTo(290, GOAL.y + GOAL.h + 120);
+  ctx.lineTo(282, GOAL.y + GOAL.h + 115);
+  ctx.moveTo(290, GOAL.y + GOAL.h + 120);
+  ctx.lineTo(282, GOAL.y + GOAL.h + 125);
+  ctx.stroke();
+
+  ctx.globalAlpha = 1;
+}
+
+function drawDangerVignette(ctx) {
+  if (!activeBall || activeBall.progress < 0.5) return;
+  const intensity = (activeBall.progress - 0.5) / 0.5;
+  const alpha = intensity * 0.15;
+
+  const grad = ctx.createRadialGradient(200, 350, 100, 200, 350, 400);
+  grad.addColorStop(0, 'rgba(255,0,110,0)');
+  grad.addColorStop(1, `rgba(255,0,110,${alpha})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 400, 700);
+}
+
+// ============================================================
+// GAME INSTANCE
+// ============================================================
+const game = new ArcadeEngine('game', {
+  name: 'GOALIE',
+  width: 400,
+  height: 700,
+
+  onStateChange(newState, oldState) {
+    if (newState === 'playing') {
+      // Reset
+      keeper.x = GOAL_CX;
+      keeper.y = GOAL_CY + 40;
+      keeper.targetX = GOAL_CX;
+      keeper.diveDir = 0;
+      keeper.diveProgress = 0;
+      keeper.diveSpeed = 0;
+      keeper.recovering = false;
+      keeper.recoverTimer = 0;
+      keeper.idleSway = 0;
+      activeBall = null;
+      shotTimer = 0;
+      shotDelay = BASE_SHOT_DELAY;
+      shotSpeed = BASE_SHOT_SPEED;
+      savesCount = 0;
+      gameActive = true;
+      showInstruction = true;
+      shotWarningTimer = 0;
+      warningTarget = null;
+    }
+  },
+
+  onInput(type, data, engine) {
+    if (type === 'drag_end' && gameActive) {
+      showInstruction = false;
+
+      // Swipe direction determines dive
+      const swipeX = data.dx;
+      const swipeThreshold = 15;
+
+      if (Math.abs(swipeX) > swipeThreshold) {
+        const dir = swipeX > 0 ? 1 : -1;
+        keeper.diveDir = dir;
+        keeper.diveProgress = 0;
+        keeper.diveSpeed = Math.min(Math.abs(swipeX) / 80, 1) * 6;
+        keeper.recovering = false;
+
+        // Move keeper in dive direction
+        const diveDistance = 60 + Math.min(Math.abs(swipeX), 150) * 0.5;
+        keeper.targetX = Math.max(GOAL.x + 20, Math.min(GOAL.x + GOAL.w - 20,
+          keeper.x + dir * diveDistance));
+
+        engine.sound.tap();
+      }
+    }
+    if (type === 'tap' && gameActive) {
+      showInstruction = false;
+    }
+  },
+
+  onUpdate(dt, engine) {
+    if (!gameActive) return;
+
+    // Keeper movement
+    if (keeper.diveDir !== 0 && !keeper.recovering) {
+      // Diving
+      keeper.diveProgress = Math.min(1, keeper.diveProgress + dt * keeper.diveSpeed);
+      keeper.x += (keeper.targetX - keeper.x) * dt * 12;
+
+      if (keeper.diveProgress >= 1) {
+        keeper.recovering = true;
+        keeper.recoverTimer = 0.4;
+      }
+    } else if (keeper.recovering) {
+      // Recovery
+      keeper.recoverTimer -= dt;
+      if (keeper.recoverTimer <= 0) {
+        keeper.recovering = false;
+        keeper.diveDir = 0;
+        keeper.diveProgress = 0;
+        // Drift back to center
+        keeper.targetX = GOAL_CX;
+      }
+      keeper.x += (keeper.targetX - keeper.x) * dt * 4;
+    } else {
+      // Idle — gentle sway
+      keeper.idleSway += dt;
+      keeper.x += (keeper.targetX - keeper.x) * dt * 5;
+      // Subtle idle bounce
+      keeper.x += Math.sin(keeper.idleSway * 2) * 0.3;
+    }
+
+    // Clamp keeper to goal area
+    keeper.x = Math.max(GOAL.x + 15, Math.min(GOAL.x + GOAL.w - 15, keeper.x));
+
+    // Shot timer
+    if (!activeBall) {
+      shotTimer += dt;
+
+      // Warning phase: show crosshair before shot
+      const warningTime = Math.max(0.3, shotDelay * 0.4);
+      if (shotTimer > shotDelay - warningTime && !warningTarget) {
+        // Pre-calculate where shot will go and show warning
+        const zones = [-0.85, -0.45, 0, 0.45, 0.85];
+        const heights = [0.7, 0.3, -0.1];
+        const zoneIdx = Math.floor(Math.random() * zones.length);
+        const heightIdx = Math.floor(Math.random() * heights.length);
+        warningTarget = {
+          x: GOAL_CX + zones[zoneIdx] * (GOAL.w / 2 - 15),
+          y: GOAL.y + GOAL.h * heights[heightIdx],
+        };
+        shotWarningTimer = warningTime;
+      }
+
+      if (shotWarningTimer > 0) {
+        shotWarningTimer -= dt;
+      }
+
+      if (shotTimer >= shotDelay) {
+        const target = warningTarget || createShot(engine);
+        // Use warning target if we have one
+        if (warningTarget) {
+          const startAngle = (Math.random() - 0.5) * 0.8;
+          const startX = 200 + Math.sin(startAngle) * 250;
+          const startY = 750;
+          const maxCurve = Math.min(savesCount * 4, 120);
+          const curve = (Math.random() - 0.5) * maxCurve;
+          const tdx = warningTarget.x - startX;
+          const tdy = warningTarget.y - startY;
+          const dist = Math.sqrt(tdx * tdx + tdy * tdy);
+          const speed = shotSpeed + Math.random() * 40;
+
+          activeBall = {
+            x: startX,
+            y: startY,
+            startX: startX,
+            startY: startY,
+            targetX: warningTarget.x,
+            targetY: warningTarget.y,
+            progress: 0,
+            speed: speed / dist,
+            curve: curve,
+            radius: 16,
+            rotation: 0,
+            spinRate: (Math.random() - 0.5) * 12,
+            scale: 0.4,
+            shadow: 0.3,
+          };
+          engine.sound.throw();
+        }
+        warningTarget = null;
+        shotTimer = 0;
+      }
+    }
+
+    // Update ball
+    if (activeBall) {
+      activeBall.progress += activeBall.speed * dt;
+
+      // Check save at ~85-100% of trajectory
+      if (activeBall.progress >= 0.85 && activeBall.progress < 1.0) {
+        if (checkSave(engine)) {
+          onSave(engine);
+          return;
+        }
+      }
+
+      // Ball reached goal line — GOAL!
+      if (activeBall.progress >= 1.0) {
+        onGoal(engine);
+      }
+    }
+  },
+
+  onDraw(ctx, engine) {
+    drawField(ctx, engine);
+    drawGoal(ctx, engine);
+    drawShotWarning(ctx, engine);
+    drawBall(ctx, engine);
+    drawKeeper(ctx, engine);
+    drawInstruction(ctx, engine);
+    drawDangerVignette(ctx);
+  },
+});
+
+game.start();
+</script>
+</body>
+</html>
