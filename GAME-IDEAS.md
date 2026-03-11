@@ -8,7 +8,7 @@ Varje spel är en enkel endless highscore-mekanik — lätt att förstå, svårt
 ### Hole in One
 Tap för att sätta power och vinkel på minigolf-slag. Ett slag per hål, banorna blir galnare. Score = antal hål klarade.
 
-### Roof Hopper
+### Roof Hopper ✅ KLAR
 En karaktär springer över hustak. Tap för att hoppa över gapen. Gapen blir bredare, taken smalare, vind tillkommer. Flappy Bird-DNA.
 
 ### Perfect Serve
@@ -53,7 +53,7 @@ Luta för att hälla öl/läsk i glas. Fyll till linjen utan att det rinner öve
 | ✅ | Bin It | Klar | ⭐⭐⭐⭐ |
 | ✅ | Juggle King | Klar | ⭐⭐⭐⭐⭐ |
 | ✅ | Goalie | Klar | ⭐⭐⭐⭐⭐ |
-| 3 | Roof Hopper | Enkel | ⭐⭐⭐⭐ |
+| ✅ | Roof Hopper | Klar | ⭐⭐⭐⭐ |
 | 4 | Dart Streak | Enkel | ⭐⭐⭐⭐ |
 | 5 | Tower Stacker | Enkel | ⭐⭐⭐⭐ |
 | 6 | Perfect Serve | Medium | ⭐⭐⭐ |
