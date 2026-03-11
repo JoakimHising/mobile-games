@@ -7,6 +7,7 @@ const entryPoints = {
   arcade: resolve(__dirname, 'src/arcade/index.html'),
   'bin-it': resolve(__dirname, 'src/standalone/bin-it.html'),
   'juggle-king': resolve(__dirname, 'src/standalone/juggle-king.html'),
+  'goalie': resolve(__dirname, 'src/standalone/goalie.html'),
 };
 
 export default defineConfig({
