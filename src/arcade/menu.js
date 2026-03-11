@@ -5,6 +5,7 @@ const GAMES = [
   { id: 'bin-it', name: 'BIN IT!', desc: 'Throw paper into bins', color: THEME.primary, icon: '🗑️', loader: () => import('../games/bin-it/game.js') },
   { id: 'juggle-king', name: 'JUGGLE KING', desc: 'Keep the ball in the air', color: THEME.accent, icon: '⚽', loader: () => import('../games/juggle-king/game.js') },
   { id: 'goalie', name: 'GOALIE', desc: 'Dive to save shots on goal', color: THEME.highlight, icon: '🧤', loader: () => import('../games/goalie/game.js') },
+  { id: 'roof-hopper', name: 'ROOF HOPPER', desc: 'Jump across rooftops', color: THEME.accentDark, icon: '🏃', loader: () => import('../games/roof-hopper/game.js') },
 ];
 
 export function createMenu(canvasId) {

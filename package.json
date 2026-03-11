@@ -10,10 +10,12 @@
     "build:bin-it": "BUILD_MODE=bin-it vite build",
     "build:juggle-king": "BUILD_MODE=juggle-king vite build",
     "build:goalie": "BUILD_MODE=goalie vite build",
+    "build:roof-hopper": "BUILD_MODE=roof-hopper vite build",
     "cap:sync:arcade": "npm run build:arcade && cp configs/capacitor.arcade.json capacitor.config.json && npx cap sync",
     "cap:sync:bin-it": "npm run build:bin-it && cp configs/capacitor.bin-it.json capacitor.config.json && npx cap sync",
     "cap:sync:juggle-king": "npm run build:juggle-king && cp configs/capacitor.juggle-king.json capacitor.config.json && npx cap sync",
     "cap:sync:goalie": "npm run build:goalie && cp configs/capacitor.goalie.json capacitor.config.json && npx cap sync",
+    "cap:sync:roof-hopper": "npm run build:roof-hopper && cp configs/capacitor.roof-hopper.json capacitor.config.json && npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android"
   },

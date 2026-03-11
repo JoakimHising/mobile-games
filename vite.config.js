@@ -8,6 +8,7 @@ const entryPoints = {
   'bin-it': resolve(__dirname, 'src/standalone/bin-it.html'),
   'juggle-king': resolve(__dirname, 'src/standalone/juggle-king.html'),
   'goalie': resolve(__dirname, 'src/standalone/goalie.html'),
+  'roof-hopper': resolve(__dirname, 'src/standalone/roof-hopper.html'),
 };
 
 export default defineConfig({
