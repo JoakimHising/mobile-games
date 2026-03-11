@@ -307,6 +307,35 @@
   #game {
     display: none;
   }
+
+  /* ── Back button overlay ── */
+  #back-btn {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: calc(12px + env(safe-area-inset-left, 0px));
+    z-index: 1000;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(10, 10, 26, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #back-btn:active {
+    background: rgba(255, 107, 53, 0.3);
+    border-color: rgba(255, 107, 53, 0.6);
+  }
 </style>
 </head>
 <body>
@@ -329,6 +358,7 @@
   </footer>
 </div>
 
+<button id="back-btn" aria-label="Back to menu">←</button>
 <canvas id="game"></canvas>
 
 <script type="module">

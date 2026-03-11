@@ -25,6 +25,7 @@ export function createMenu(canvasId) {
   const menuScreen = document.getElementById('menu-screen');
   const cardList = document.getElementById('card-list');
   const gameCount = document.getElementById('game-count');
+  const backBtn = document.getElementById('back-btn');
 
   let currentGame = null;
   let resizeHandler = null;
@@ -98,6 +99,9 @@ export function createMenu(canvasId) {
       document.body.style.alignItems = 'center';
 
       currentGame = mod.createGame(canvasId);
+
+      // Show back button
+      backBtn.style.display = 'flex';
     } catch (err) {
       console.error('Failed to load game:', err);
     }
@@ -114,6 +118,9 @@ export function createMenu(canvasId) {
       window.removeEventListener('resize', resizeHandler);
       resizeHandler = null;
     }
+
+    // Hide back button
+    backBtn.style.display = 'none';
 
     // Switch views
     canvas.style.display = 'none';
@@ -159,6 +166,12 @@ export function createMenu(canvasId) {
       }
     });
   }
+
+  // Back button overlay click
+  backBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    returnToMenu();
+  });
 
   // Expose for back button handling (capacitor-bridge.js)
   window._arcadeReturnToMenu = returnToMenu;

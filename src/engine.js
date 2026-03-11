@@ -647,18 +647,16 @@ class UI {
       ctx.fillText(`BEST: ${bestScore}`, this.w / 2, centerY + 105);
     }
     this._buttons = [];
-    const btnY = centerY + 160;
+    const btnY = centerY + 150;
     const btnW = 200, btnH = 50, btnR = 25;
     this._drawButton(ctx, this.w / 2, btnY, btnW, btnH, btnR, 'PLAY AGAIN', THEME.primary);
     this._buttons.push({ x: this.w / 2, y: btnY, w: btnW, h: btnH, action: 'retry' });
-    const shareBtnY = btnY + 70;
+    const shareBtnY = btnY + 62;
     this._drawButton(ctx, this.w / 2, shareBtnY, btnW, btnH, btnR, 'SHARE SCORE', THEME.accentDark);
     this._buttons.push({ x: this.w / 2, y: shareBtnY, w: btnW, h: btnH, action: 'share' });
-    const alpha = 0.3 + Math.sin(time * 3) * 0.2;
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = THEME.textDim;
-    ctx.font = "400 13px Arial, sans-serif";
-    ctx.fillText('or tap anywhere to retry', this.w / 2, shareBtnY + 55);
+    const menuBtnY = shareBtnY + 62;
+    this._drawButton(ctx, this.w / 2, menuBtnY, btnW, btnH, btnR, '← MENU', 'rgba(255,255,255,0.15)');
+    this._buttons.push({ x: this.w / 2, y: menuBtnY, w: btnW, h: btnH, action: 'menu' });
     ctx.globalAlpha = 1;
   }
 
@@ -870,6 +868,12 @@ class ArcadeEngine {
       const action = this.ui.hitTestButtons(data.x, data.y);
       if (action === 'share') {
         this.ui.shareScore(this.gameName, this.score);
+        return;
+      }
+      if (action === 'menu') {
+        if (typeof window._arcadeReturnToMenu === 'function') {
+          window._arcadeReturnToMenu();
+        }
         return;
       }
       this.setState('playing');
