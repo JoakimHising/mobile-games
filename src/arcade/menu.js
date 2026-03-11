@@ -6,6 +6,7 @@ const GAMES = [
   { id: 'juggle-king', name: 'JUGGLE KING', desc: 'Keep the ball in the air', color: THEME.accent, icon: '⚽', loader: () => import('../games/juggle-king/game.js') },
   { id: 'goalie', name: 'GOALIE', desc: 'Dive to save shots on goal', color: THEME.highlight, icon: '🧤', loader: () => import('../games/goalie/game.js') },
   { id: 'roof-hopper', name: 'ROOF HOPPER', desc: 'Jump across rooftops', color: THEME.accentDark, icon: '🏃', loader: () => import('../games/roof-hopper/game.js') },
+  { id: 'dart-streak', name: 'DART STREAK', desc: 'Flick darts at the board', color: THEME.fail, icon: '🎯', loader: () => import('../games/dart-streak/game.js') },
 ];
 
 export function createMenu(canvasId) {
