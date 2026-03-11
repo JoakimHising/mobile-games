@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Clean & Minimal Style</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #F5F0EB;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  canvas { display: block; border-radius: 20px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// Responsive sizing
+const maxW = 400, maxH = 700;
+const scale = Math.min(window.innerWidth / maxW, window.innerHeight / maxH, 1);
+canvas.width = maxW;
+canvas.height = maxH;
+canvas.style.width = maxW * scale + 'px';
+canvas.style.height = maxH * scale + 'px';
+
+// Color palette - soft pastels
+const colors = {
+  bg: '#F5F0EB',
+  paper: '#FFFFFF',
+  paperShadow: '#E8E0D8',
+  bin: '#2D2D2D',
+  binInner: '#1A1A1A',
+  accent: '#E8785E',
+  accentLight: '#F4A590',
+  text: '#2D2D2D',
+  textLight: '#8A8078',
+  trail: 'rgba(232, 120, 94, 0.15)',
+  success: '#7BC5A0',
+};
+
+let score = 0;
+let ballX = 200, ballY = 520;
+let ballVX = 0, ballVY = 0;
+let throwing = false;
+let thrown = false;
+let landed = false;
+let landedTime = 0;
+let dragging = false;
+let dragStartX = 0, dragStartY = 0;
+let dragEndX = 0, dragEndY = 0;
+let trail = [];
+let particles = [];
+let binX = 200, binY = 140;
+let scorePopups = [];
+let time = 0;
+
+// Subtle floating animation for paper
+let floatPhase = 0;
+
+function drawRoundedRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawBin() {
+  // Bin shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.06)';
+  ctx.beginPath();
+  ctx.ellipse(binX, binY + 52, 38, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Bin body
+  ctx.fillStyle = colors.bin;
+  drawRoundedRect(binX - 30, binY - 35, 60, 80, 6);
+  ctx.fill();
+
+  // Bin rim
+  ctx.fillStyle = colors.bin;
+  drawRoundedRect(binX - 35, binY - 40, 70, 14, 4);
+  ctx.fill();
+
+  // Bin inner darkness
+  ctx.fillStyle = colors.binInner;
+  drawRoundedRect(binX - 26, binY - 33, 52, 12, 3);
+  ctx.fill();
+
+  // Subtle highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(binX - 24, binY - 20, 4, 50);
+}
+
+function drawPaper(x, y, rotation) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+
+  // Paper shadow
+  ctx.fillStyle = colors.paperShadow;
+  drawRoundedRect(-16, -14, 32, 32, 4);
+  ctx.fill();
+
+  // Paper
+  ctx.fillStyle = colors.paper;
+  drawRoundedRect(-18, -16, 32, 32, 4);
+  ctx.fill();
+
+  // Paper fold
+  ctx.strokeStyle = '#E8E0D8';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-8, -16);
+  ctx.lineTo(-8, -4);
+  ctx.lineTo(4, -16);
+  ctx.stroke();
+
+  // Paper lines
+  ctx.strokeStyle = '#E0D8D0';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-10, i * 8);
+    ctx.lineTo(10, i * 8);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawTrail() {
+  if (trail.length < 2) return;
+  ctx.strokeStyle = colors.trail;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(trail[0].x, trail[0].y);
+  for (let i = 1; i < trail.length; i++) {
+    ctx.lineTo(trail[i].x, trail[i].y);
+  }
+  ctx.stroke();
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+function drawDragLine() {
+  if (!dragging) return;
+  const dx = dragStartX - dragEndX;
+  const dy = dragStartY - dragEndY;
+  const power = Math.min(Math.sqrt(dx * dx + dy * dy) / 150, 1);
+
+  // Subtle dotted line
+  ctx.strokeStyle = `rgba(232, 120, 94, ${0.3 + power * 0.4})`;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 6]);
+  ctx.beginPath();
+  ctx.moveTo(ballX, ballY);
+  ctx.lineTo(ballX + dx * 0.5, ballY + dy * 0.5);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Power indicator
+  ctx.fillStyle = colors.accent;
+  ctx.globalAlpha = 0.2 + power * 0.6;
+  ctx.beginPath();
+  ctx.arc(ballX, ballY, 20 + power * 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawScore() {
+  // Score
+  ctx.fillStyle = colors.text;
+  ctx.font = '600 48px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(score, 200, 660);
+
+  ctx.fillStyle = colors.textLight;
+  ctx.font = '400 14px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('SCORE', 200, 680);
+
+  // Style label
+  ctx.fillStyle = colors.accent;
+  ctx.font = '600 13px -apple-system, BlinkMacSystemFont, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('CLEAN & MINIMAL', 200, 30);
+}
+
+function drawScorePopups() {
+  scorePopups.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = colors.success;
+    ctx.font = `600 ${24 + (1 - p.life) * 10}px -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('+1', p.x, p.y);
+  });
+  ctx.globalAlpha = 1;
+}
+
+function spawnParticles(x, y, count, color) {
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * (1 + Math.random() * 2),
+      vy: Math.sin(angle) * (1 + Math.random() * 2),
+      size: 2 + Math.random() * 3,
+      life: 1,
+      color: color || colors.accentLight,
+    });
+  }
+}
+
+function resetBall() {
+  thrown = false;
+  landed = false;
+  throwing = false;
+  ballX = 160 + Math.random() * 80;
+  ballY = 520;
+  ballVX = 0;
+  ballVY = 0;
+  trail = [];
+  binX = 100 + Math.random() * 200;
+}
+
+function update(dt) {
+  time += dt;
+  floatPhase += dt * 2;
+
+  if (thrown && !landed) {
+    ballVY += 300 * dt; // gravity
+    ballX += ballVX * dt;
+    ballY += ballVY * dt;
+
+    trail.push({ x: ballX, y: ballY });
+    if (trail.length > 30) trail.shift();
+
+    // Check bin collision
+    if (ballY > binY - 30 && ballY < binY + 10 &&
+        ballX > binX - 22 && ballX < binX + 22) {
+      landed = true;
+      landedTime = 0;
+      score++;
+      spawnParticles(binX, binY - 20, 12, colors.success);
+      scorePopups.push({ x: binX, y: binY - 60, life: 1 });
+    }
+
+    // Off screen
+    if (ballY > 750 || ballX < -50 || ballX > 450) {
+      resetBall();
+    }
+  }
+
+  if (landed) {
+    landedTime += dt;
+    if (landedTime > 1.2) resetBall();
+  }
+
+  // Update particles
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= dt * 1.5;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  // Update score popups
+  scorePopups.forEach(p => {
+    p.y -= 40 * dt;
+    p.life -= dt * 1.2;
+  });
+  scorePopups = scorePopups.filter(p => p.life > 0);
+}
+
+function draw() {
+  ctx.fillStyle = colors.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Subtle grid
+  ctx.strokeStyle = 'rgba(0,0,0,0.03)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < canvas.width; i += 40) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+  }
+  for (let i = 0; i < canvas.height; i += 40) {
+    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+  }
+
+  drawTrail();
+  drawBin();
+  drawDragLine();
+
+  if (!landed) {
+    const floatY = thrown ? 0 : Math.sin(floatPhase) * 3;
+    const rotation = thrown ? time * 3 : Math.sin(floatPhase * 0.5) * 0.05;
+    drawPaper(ballX, ballY + floatY, rotation);
+  }
+
+  drawParticles();
+  drawScorePopups();
+  drawScore();
+
+  // Instruction
+  if (!thrown && !dragging) {
+    ctx.fillStyle = colors.textLight;
+    ctx.font = '400 14px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'center';
+    const alpha = 0.4 + Math.sin(time * 3) * 0.3;
+    ctx.globalAlpha = alpha;
+    ctx.fillText('drag to throw', 200, 580);
+    ctx.globalAlpha = 1;
+  }
+}
+
+let lastTime = 0;
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  update(dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+// Touch/mouse input
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const touch = e.touches ? e.touches[0] : e;
+  return {
+    x: (touch.clientX - rect.left) * scaleX,
+    y: (touch.clientY - rect.top) * scaleY
+  };
+}
+
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onStart(getPos(e)); }, { passive: false });
+canvas.addEventListener('mousedown', e => onStart(getPos(e)));
+canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(getPos(e)); }, { passive: false });
+canvas.addEventListener('mousemove', e => { if (dragging) onMove(getPos(e)); });
+canvas.addEventListener('touchend', e => { e.preventDefault(); onEnd(); }, { passive: false });
+canvas.addEventListener('mouseup', () => onEnd());
+
+function onStart(pos) {
+  if (thrown) return;
+  const dx = pos.x - ballX, dy = pos.y - ballY;
+  if (dx * dx + dy * dy < 2500) {
+    dragging = true;
+    dragStartX = pos.x;
+    dragStartY = pos.y;
+    dragEndX = pos.x;
+    dragEndY = pos.y;
+  }
+}
+
+function onMove(pos) {
+  if (!dragging) return;
+  dragEndX = pos.x;
+  dragEndY = pos.y;
+}
+
+function onEnd() {
+  if (!dragging) return;
+  dragging = false;
+  const dx = dragStartX - dragEndX;
+  const dy = dragStartY - dragEndY;
+  const power = Math.sqrt(dx * dx + dy * dy);
+  if (power > 20) {
+    thrown = true;
+    ballVX = dx * 2.5;
+    ballVY = dy * 2.5;
+    spawnParticles(ballX, ballY, 6, colors.accentLight);
+  }
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

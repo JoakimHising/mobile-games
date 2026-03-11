@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Bold & Vibrant Style</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0A0A1A;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Arial Black', 'Impact', sans-serif;
+  }
+  canvas { display: block; border-radius: 20px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const maxW = 400, maxH = 700;
+const scale = Math.min(window.innerWidth / maxW, window.innerHeight / maxH, 1);
+canvas.width = maxW;
+canvas.height = maxH;
+canvas.style.width = maxW * scale + 'px';
+canvas.style.height = maxH * scale + 'px';
+
+const colors = {
+  bg: '#0A0A1A',
+  bgGrad1: '#0F0C29',
+  bgGrad2: '#1A1A3E',
+  paper: '#FF6B35',
+  paperGlow: '#FF9F1C',
+  bin: '#00F5D4',
+  binGlow: '#00BBF9',
+  accent: '#FEE440',
+  text: '#FFFFFF',
+  textGlow: '#FF6B35',
+  trail: '#FF6B35',
+  success: '#00F5D4',
+  combo: '#FEE440',
+  particle1: '#FF006E',
+  particle2: '#FB5607',
+  particle3: '#FFBE0B',
+  particle4: '#00F5D4',
+};
+
+let score = 0;
+let combo = 0;
+let ballX = 200, ballY = 520;
+let ballVX = 0, ballVY = 0;
+let thrown = false;
+let landed = false;
+let landedTime = 0;
+let dragging = false;
+let dragStartX = 0, dragStartY = 0;
+let dragEndX = 0, dragEndY = 0;
+let trail = [];
+let particles = [];
+let binX = 200, binY = 140;
+let scorePopups = [];
+let time = 0;
+let screenShake = 0;
+let bgStars = [];
+
+// Generate background stars
+for (let i = 0; i < 60; i++) {
+  bgStars.push({
+    x: Math.random() * maxW,
+    y: Math.random() * maxH,
+    size: Math.random() * 2 + 0.5,
+    speed: Math.random() * 0.3 + 0.1,
+    brightness: Math.random(),
+  });
+}
+
+function drawBg() {
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, colors.bgGrad1);
+  grad.addColorStop(1, colors.bgGrad2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Animated stars
+  bgStars.forEach(s => {
+    s.brightness = 0.3 + Math.sin(time * s.speed * 5 + s.x) * 0.7;
+    ctx.globalAlpha = s.brightness * 0.5;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+function drawGlow(x, y, radius, color) {
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  grad.addColorStop(0, color + '40');
+  grad.addColorStop(0.5, color + '15');
+  grad.addColorStop(1, color + '00');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBin() {
+  // Bin glow
+  drawGlow(binX, binY, 80, colors.bin);
+
+  // Bin body with gradient
+  const binGrad = ctx.createLinearGradient(binX - 30, 0, binX + 30, 0);
+  binGrad.addColorStop(0, colors.binGlow);
+  binGrad.addColorStop(0.5, colors.bin);
+  binGrad.addColorStop(1, colors.binGlow);
+
+  ctx.fillStyle = binGrad;
+  ctx.beginPath();
+  ctx.moveTo(binX - 32, binY - 40);
+  ctx.lineTo(binX + 32, binY - 40);
+  ctx.lineTo(binX + 26, binY + 45);
+  ctx.lineTo(binX - 26, binY + 45);
+  ctx.closePath();
+  ctx.fill();
+
+  // Neon rim
+  ctx.strokeStyle = colors.bin;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = colors.bin;
+  ctx.shadowBlur = 15;
+  ctx.beginPath();
+  ctx.moveTo(binX - 36, binY - 40);
+  ctx.lineTo(binX + 36, binY - 40);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Inner darkness
+  ctx.fillStyle = '#050510';
+  ctx.beginPath();
+  ctx.moveTo(binX - 28, binY - 38);
+  ctx.lineTo(binX + 28, binY - 38);
+  ctx.lineTo(binX + 24, binY - 20);
+  ctx.lineTo(binX - 24, binY - 20);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawPaper(x, y, rotation) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+
+  // Paper glow
+  drawGlow(0, 0, 40, colors.paper);
+
+  // Paper ball - energetic shape
+  const pulse = 1 + Math.sin(time * 8) * 0.05;
+  ctx.fillStyle = colors.paper;
+  ctx.shadowColor = colors.paperGlow;
+  ctx.shadowBlur = 20;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const angle = (Math.PI * 2 / 8) * i + time * 2;
+    const r = (14 + Math.sin(angle * 3 + time * 5) * 3) * pulse;
+    if (i === 0) ctx.moveTo(Math.cos(angle) * r, Math.sin(angle) * r);
+    else ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Bright center
+  ctx.fillStyle = colors.paperGlow;
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(0, 0, 6 * pulse, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawTrail() {
+  if (trail.length < 2) return;
+  for (let i = 1; i < trail.length; i++) {
+    const alpha = i / trail.length;
+    const width = alpha * 8;
+    ctx.strokeStyle = colors.trail;
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+    ctx.lineTo(trail[i].x, trail[i].y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+}
+
+function drawDragLine() {
+  if (!dragging) return;
+  const dx = dragStartX - dragEndX;
+  const dy = dragStartY - dragEndY;
+  const power = Math.min(Math.sqrt(dx * dx + dy * dy) / 150, 1);
+
+  // Power beam
+  ctx.strokeStyle = colors.paper;
+  ctx.lineWidth = 2 + power * 4;
+  ctx.shadowColor = colors.paper;
+  ctx.shadowBlur = 10 + power * 15;
+  ctx.globalAlpha = 0.4 + power * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(ballX, ballY);
+  ctx.lineTo(ballX + dx * 0.5, ballY + dy * 0.5);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+
+  // Power ring
+  ctx.strokeStyle = colors.accent;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = colors.accent;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(ballX, ballY, 25 + power * 20, 0, Math.PI * 2 * power);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawScore() {
+  // Score with glow
+  ctx.fillStyle = colors.text;
+  ctx.shadowColor = colors.textGlow;
+  ctx.shadowBlur = 20;
+  ctx.font = 'bold 56px Arial Black, Impact, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(score, 200, 655);
+  ctx.shadowBlur = 0;
+
+  // Combo
+  if (combo > 1) {
+    ctx.fillStyle = colors.combo;
+    ctx.shadowColor = colors.combo;
+    ctx.shadowBlur = 15;
+    ctx.font = 'bold 22px Arial Black, Impact, sans-serif';
+    const comboScale = 1 + Math.sin(time * 6) * 0.1;
+    ctx.save();
+    ctx.translate(200, 685);
+    ctx.scale(comboScale, comboScale);
+    ctx.fillText(`COMBO x${combo}`, 0, 0);
+    ctx.restore();
+    ctx.shadowBlur = 0;
+  }
+
+  // Style label
+  ctx.fillStyle = colors.particle1;
+  ctx.shadowColor = colors.particle1;
+  ctx.shadowBlur = 10;
+  ctx.font = 'bold 14px Arial Black, Impact, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('BOLD & VIBRANT', 200, 30);
+  ctx.shadowBlur = 0;
+}
+
+function drawScorePopups() {
+  scorePopups.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color || colors.success;
+    ctx.shadowColor = p.color || colors.success;
+    ctx.shadowBlur = 15;
+    ctx.font = `bold ${28 + (1 - p.life) * 16}px Arial Black, Impact, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(p.text, p.x, p.y);
+    ctx.shadowBlur = 0;
+  });
+  ctx.globalAlpha = 1;
+}
+
+function spawnParticles(x, y, count, colorSet) {
+  const pColors = colorSet || [colors.particle1, colors.particle2, colors.particle3, colors.particle4];
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+    const speed = 2 + Math.random() * 4;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: 2 + Math.random() * 4,
+      life: 1,
+      color: pColors[Math.floor(Math.random() * pColors.length)],
+    });
+  }
+}
+
+function resetBall() {
+  thrown = false;
+  landed = false;
+  ballX = 160 + Math.random() * 80;
+  ballY = 520;
+  ballVX = 0;
+  ballVY = 0;
+  trail = [];
+  binX = 80 + Math.random() * 240;
+}
+
+function update(dt) {
+  time += dt;
+
+  if (screenShake > 0) screenShake *= 0.9;
+  if (screenShake < 0.1) screenShake = 0;
+
+  if (thrown && !landed) {
+    ballVY += 300 * dt;
+    ballX += ballVX * dt;
+    ballY += ballVY * dt;
+
+    trail.push({ x: ballX, y: ballY });
+    if (trail.length > 25) trail.shift();
+
+    // Emit trail particles
+    if (Math.random() < 0.3) {
+      particles.push({
+        x: ballX + (Math.random() - 0.5) * 10,
+        y: ballY + (Math.random() - 0.5) * 10,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+        size: 1 + Math.random() * 2,
+        life: 0.6,
+        color: colors.paperGlow,
+      });
+    }
+
+    if (ballY > binY - 30 && ballY < binY + 10 &&
+        ballX > binX - 22 && ballX < binX + 22) {
+      landed = true;
+      landedTime = 0;
+      score++;
+      combo++;
+      screenShake = 8;
+      spawnParticles(binX, binY - 20, 20);
+      const text = combo > 2 ? `+${combo}!` : '+1';
+      scorePopups.push({ x: binX, y: binY - 60, life: 1, text, color: combo > 2 ? colors.combo : colors.success });
+    }
+
+    if (ballY > 750 || ballX < -50 || ballX > 450) {
+      combo = 0;
+      resetBall();
+    }
+  }
+
+  if (landed) {
+    landedTime += dt;
+    if (landedTime > 1.0) resetBall();
+  }
+
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= dt * 2;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  scorePopups.forEach(p => {
+    p.y -= 50 * dt;
+    p.life -= dt * 1.5;
+  });
+  scorePopups = scorePopups.filter(p => p.life > 0);
+}
+
+function draw() {
+  ctx.save();
+  if (screenShake > 0) {
+    ctx.translate(
+      (Math.random() - 0.5) * screenShake,
+      (Math.random() - 0.5) * screenShake
+    );
+  }
+
+  drawBg();
+  drawTrail();
+  drawBin();
+  drawDragLine();
+
+  if (!landed) {
+    const rotation = thrown ? time * 4 : Math.sin(time * 3) * 0.1;
+    drawPaper(ballX, ballY, rotation);
+  }
+
+  drawParticles();
+  drawScorePopups();
+  drawScore();
+
+  if (!thrown && !dragging) {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 14px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    const alpha = 0.3 + Math.sin(time * 3) * 0.3;
+    ctx.globalAlpha = alpha;
+    ctx.fillText('⟵ drag to throw ⟶', 200, 580);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+}
+
+let lastTime = 0;
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  update(dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const touch = e.touches ? e.touches[0] : e;
+  return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
+}
+
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onStart(getPos(e)); }, { passive: false });
+canvas.addEventListener('mousedown', e => onStart(getPos(e)));
+canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(getPos(e)); }, { passive: false });
+canvas.addEventListener('mousemove', e => { if (dragging) onMove(getPos(e)); });
+canvas.addEventListener('touchend', e => { e.preventDefault(); onEnd(); }, { passive: false });
+canvas.addEventListener('mouseup', () => onEnd());
+
+function onStart(pos) {
+  if (thrown) return;
+  const dx = pos.x - ballX, dy = pos.y - ballY;
+  if (dx * dx + dy * dy < 2500) {
+    dragging = true;
+    dragStartX = pos.x; dragStartY = pos.y;
+    dragEndX = pos.x; dragEndY = pos.y;
+  }
+}
+
+function onMove(pos) {
+  if (!dragging) return;
+  dragEndX = pos.x; dragEndY = pos.y;
+}
+
+function onEnd() {
+  if (!dragging) return;
+  dragging = false;
+  const dx = dragStartX - dragEndX;
+  const dy = dragStartY - dragEndY;
+  const power = Math.sqrt(dx * dx + dy * dy);
+  if (power > 20) {
+    thrown = true;
+    ballVX = dx * 2.5;
+    ballVY = dy * 2.5;
+    spawnParticles(ballX, ballY, 10, [colors.paper, colors.paperGlow]);
+  }
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

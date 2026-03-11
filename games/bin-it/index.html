@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0A0A1A">
+<title>BIN IT!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    background: #0A0A1A;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script src="../../engine.js"></script>
+<script>
+// ============================================================
+// BIN IT! — Throw paper balls into the bin
+// ============================================================
+
+// Game objects
+let ball = { x: 200, y: 480, vx: 0, vy: 0, rotation: 0, thrown: false, visible: true };
+let bin = { x: 200, y: 130, width: 56, openWidth: 48, depth: 75 };
+let trail = [];
+let wind = 0;
+let windTarget = 0;
+let difficulty = 0; // increases with score
+let isDragging = false;
+let dragData = null;
+
+// Wind indicator
+let windParticles = [];
+for (let i = 0; i < 15; i++) {
+  windParticles.push({
+    x: Math.random() * 400,
+    y: Math.random() * 700,
+    speed: 0.5 + Math.random() * 1.5,
+    size: 1 + Math.random() * 2,
+    alpha: 0.05 + Math.random() * 0.1,
+  });
+}
+
+function resetBall(engine) {
+  ball.x = 150 + Math.random() * 100;
+  ball.y = 480;
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.rotation = 0;
+  ball.thrown = false;
+  ball.visible = true;
+  trail = [];
+  isDragging = false;
+  dragData = null;
+
+  // Move bin based on difficulty
+  const range = Math.min(60 + difficulty * 8, 200);
+  bin.x = 200 + (Math.random() - 0.5) * range;
+  bin.x = Math.max(60, Math.min(340, bin.x));
+
+  // Adjust wind
+  const maxWind = Math.min(difficulty * 8, 80);
+  windTarget = (Math.random() - 0.5) * maxWind;
+}
+
+function drawBin(ctx, engine) {
+  const { x, y, width, depth } = bin;
+
+  // Glow
+  drawGlow(ctx, x, y, 70, THEME.accent);
+
+  // Bin body gradient
+  const grad = ctx.createLinearGradient(x - width/2, 0, x + width/2, 0);
+  grad.addColorStop(0, THEME.accentDark);
+  grad.addColorStop(0.3, THEME.accent);
+  grad.addColorStop(0.7, THEME.accent);
+  grad.addColorStop(1, THEME.accentDark);
+  ctx.fillStyle = grad;
+
+  // Tapered bin shape
+  ctx.beginPath();
+  ctx.moveTo(x - width/2 - 4, y - 38);
+  ctx.lineTo(x + width/2 + 4, y - 38);
+  ctx.lineTo(x + width/2 - 4, y + depth/2);
+  ctx.lineTo(x - width/2 + 4, y + depth/2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Rim with glow
+  ctx.strokeStyle = THEME.accent;
+  ctx.lineWidth = 4;
+  ctx.shadowColor = THEME.accent;
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(x - width/2 - 8, y - 38);
+  ctx.lineTo(x + width/2 + 8, y - 38);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Inner darkness
+  ctx.fillStyle = '#030308';
+  ctx.beginPath();
+  ctx.moveTo(x - width/2 + 2, y - 36);
+  ctx.lineTo(x + width/2 - 2, y - 36);
+  ctx.lineTo(x + width/2 - 6, y - 16);
+  ctx.lineTo(x - width/2 + 6, y - 16);
+  ctx.closePath();
+  ctx.fill();
+
+  // Subtle highlight stripe
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fillRect(x - width/2 + 2, y - 30, 5, depth - 16);
+
+  // Metal bands
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillRect(x - width/2 + 2, y - 5, width - 4, 3);
+  ctx.fillRect(x - width/2 + 2, y + 20, width - 4, 3);
+}
+
+function drawPaperBall(ctx, engine) {
+  if (!ball.visible) return;
+
+  const { x, y, rotation } = ball;
+  const bobY = ball.thrown ? 0 : Math.sin(engine.time * 3) * 4;
+
+  ctx.save();
+  ctx.translate(x, y + bobY);
+  ctx.rotate(rotation);
+
+  // Glow
+  drawGlow(ctx, 0, 0, 35, THEME.primary);
+
+  // Crumpled paper ball shape
+  const pulse = 1 + Math.sin(engine.time * 8) * 0.04;
+  ctx.fillStyle = THEME.primary;
+  ctx.shadowColor = THEME.primaryLight;
+  ctx.shadowBlur = 15;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const angle = (Math.PI * 2 / 8) * i + engine.time * (ball.thrown ? 0 : 1.5);
+    const r = (13 + Math.sin(angle * 3 + engine.time * 4) * 2.5) * pulse;
+    if (i === 0) ctx.moveTo(Math.cos(angle) * r, Math.sin(angle) * r);
+    else ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Center highlight
+  ctx.fillStyle = THEME.primaryLight;
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  ctx.arc(-2, -2, 5 * pulse, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawTrail(ctx) {
+  if (trail.length < 2) return;
+  for (let i = 1; i < trail.length; i++) {
+    const alpha = (i / trail.length) * 0.5;
+    const width = (i / trail.length) * 7;
+    ctx.strokeStyle = THEME.primary;
+    ctx.globalAlpha = alpha;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+    ctx.lineTo(trail[i].x, trail[i].y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawDragIndicator(ctx, engine) {
+  if (!isDragging || !dragData) return;
+
+  const dx = dragData.startX - dragData.x;
+  const dy = dragData.startY - dragData.y;
+  const power = Math.min(Math.sqrt(dx * dx + dy * dy) / 150, 1);
+
+  // Direction line
+  ctx.strokeStyle = THEME.primary;
+  ctx.lineWidth = 2 + power * 3;
+  ctx.shadowColor = THEME.primary;
+  ctx.shadowBlur = 8 + power * 12;
+  ctx.globalAlpha = 0.3 + power * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(ball.x, ball.y);
+  ctx.lineTo(ball.x + dx * 0.4, ball.y + dy * 0.4);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+
+  // Power ring
+  ctx.strokeStyle = THEME.highlight;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = THEME.highlight;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, 22 + power * 18, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * power);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Power text
+  if (power > 0.3) {
+    ctx.fillStyle = THEME.highlight;
+    ctx.globalAlpha = power;
+    ctx.font = "bold 14px 'Arial Black', Impact, sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText(Math.round(power * 100) + '%', ball.x, ball.y + 55);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawWind(ctx, engine) {
+  if (Math.abs(wind) < 5) return;
+
+  // Wind indicator at top
+  const windNorm = wind / 80;
+  const arrowX = 200 + windNorm * 80;
+
+  ctx.fillStyle = THEME.textDim;
+  ctx.font = "600 11px Arial, sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('WIND', 200, 55);
+
+  // Arrow
+  ctx.strokeStyle = THEME.primaryLight;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = THEME.primaryLight;
+  ctx.shadowBlur = 6;
+  ctx.globalAlpha = Math.min(Math.abs(windNorm) * 2, 0.8);
+  ctx.beginPath();
+  ctx.moveTo(200, 65);
+  ctx.lineTo(arrowX, 65);
+  // Arrowhead
+  const dir = Math.sign(windNorm);
+  ctx.lineTo(arrowX - dir * 6, 60);
+  ctx.moveTo(arrowX, 65);
+  ctx.lineTo(arrowX - dir * 6, 70);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+
+  // Floating wind particles
+  windParticles.forEach(wp => {
+    wp.x += wind * wp.speed * 0.02;
+    if (wp.x > 420) wp.x = -20;
+    if (wp.x < -20) wp.x = 420;
+    ctx.globalAlpha = wp.alpha;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(wp.x, wp.y, wp.size * (1 + Math.abs(windNorm)), 1);
+  });
+  ctx.globalAlpha = 1;
+}
+
+function drawInstruction(ctx, engine) {
+  if (ball.thrown || isDragging) return;
+
+  const alpha = 0.3 + Math.sin(engine.time * 3) * 0.25;
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = THEME.textWhite;
+  ctx.font = "600 14px Arial, sans-serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('drag & release to throw', 200, 560);
+  ctx.globalAlpha = 1;
+}
+
+// ============================================================
+// GAME INSTANCE
+// ============================================================
+const game = new ArcadeEngine('game', {
+  name: 'BIN IT!',
+  width: 400,
+  height: 700,
+
+  onStateChange(newState, oldState) {
+    if (newState === 'playing') {
+      difficulty = 0;
+      wind = 0;
+      windTarget = 0;
+      resetBall(game);
+    }
+  },
+
+  onInput(type, data, engine) {
+    if (type === 'drag_start') {
+      if (ball.thrown) return;
+      const dx = data.x - ball.x;
+      const dy = data.y - ball.y;
+      if (dx * dx + dy * dy < 3600) { // 60px radius
+        isDragging = true;
+      }
+    }
+
+    if (type === 'drag_move' && isDragging) {
+      dragData = data;
+    }
+
+    if (type === 'drag_end' && isDragging) {
+      isDragging = false;
+      const dx = data.startX - data.x;
+      const dy = data.startY - data.y;
+      const power = Math.sqrt(dx * dx + dy * dy);
+
+      if (power > 25) {
+        ball.thrown = true;
+        ball.vx = dx * 2.2;
+        ball.vy = dy * 2.2;
+        engine.sound.throw();
+        engine.particles.emit(ball.x, ball.y, 8, {
+          colors: [THEME.primary, THEME.primaryLight],
+          speed: [1, 3],
+          life: [0.3, 0.6],
+        });
+      }
+      dragData = null;
+    }
+
+    if (type === 'tap' && !ball.thrown) {
+      // Do nothing on tap when playing - need drag to throw
+    }
+  },
+
+  onUpdate(dt, engine) {
+    // Wind interpolation
+    wind += (windTarget - wind) * dt * 2;
+
+    if (ball.thrown) {
+      // Physics
+      ball.vy += 400 * dt; // gravity
+      ball.vx += wind * dt; // wind
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+      ball.rotation += (ball.vx * 0.01) * dt * 10;
+
+      // Trail
+      trail.push({ x: ball.x, y: ball.y });
+      if (trail.length > 20) trail.shift();
+
+      // Trail particles
+      if (Math.random() < 0.25) {
+        engine.particles.emit(ball.x, ball.y, 1, {
+          colors: [THEME.primaryLight],
+          speed: [0.3, 1],
+          size: [1, 2.5],
+          life: [0.2, 0.5],
+          gravity: 0,
+        });
+      }
+
+      // Check bin collision - ball entering the top opening
+      const binLeft = bin.x - bin.openWidth / 2;
+      const binRight = bin.x + bin.openWidth / 2;
+      const binTop = bin.y - 38;
+      const binBottom = bin.y - 15;
+
+      if (ball.y > binTop && ball.y < binBottom &&
+          ball.x > binLeft && ball.x < binRight &&
+          ball.vy > 0) {
+        // SCORE!
+        ball.visible = false;
+        ball.thrown = false;
+
+        engine.addScore(1);
+        difficulty = engine.score;
+        engine.juice.shake(6 + Math.min(engine.combo, 5));
+        engine.juice.flash(THEME.success, 0.15);
+
+        // Particles burst from bin
+        engine.particles.emit(bin.x, binTop, 18, {
+          speed: [2, 6],
+          size: [2, 5],
+          life: [0.5, 1.2],
+          gravity: 80,
+          angle: -Math.PI / 2,
+          spread: Math.PI * 0.8,
+          colors: [THEME.success, THEME.accent, THEME.highlight, '#fff'],
+        });
+
+        // Score popup
+        const comboText = engine.combo > 2 ? `+1  x${engine.combo}` : '+1';
+        const textColor = engine.combo > 4 ? THEME.highlight : engine.combo > 2 ? THEME.accent : THEME.success;
+        engine.floatingText.spawn(bin.x, binTop - 30, comboText, {
+          color: textColor,
+          size: 22 + Math.min(engine.combo * 2, 14),
+          duration: 1,
+        });
+
+        // Reset ball after short delay
+        setTimeout(() => resetBall(engine), 600);
+      }
+
+      // Miss - off screen
+      if (ball.y > 750 || ball.x < -60 || ball.x > 460) {
+        if (engine.score > 0 || ball.y > 750) {
+          // Game over if they had a score going, or if ball falls below screen
+          engine.sound.miss();
+          engine.juice.shake(4);
+          engine.juice.flash(THEME.fail, 0.1);
+          engine.setState('gameover');
+        } else {
+          // First throw miss - let them try again
+          engine.sound.miss();
+          engine.resetCombo();
+          resetBall(engine);
+        }
+      }
+    }
+  },
+
+  onDraw(ctx, engine) {
+    drawWind(ctx, engine);
+    drawTrail(ctx);
+    drawBin(ctx, engine);
+    drawDragIndicator(ctx, engine);
+    drawPaperBall(ctx, engine);
+    drawInstruction(ctx, engine);
+  },
+});
+
+game.start();
+</script>
+</body>
+</html>

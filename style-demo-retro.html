@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Retro/Pixel Style</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1B1B2F;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: monospace;
+  }
+  canvas { display: block; image-rendering: pixelated; border-radius: 8px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const maxW = 400, maxH = 700;
+const scale = Math.min(window.innerWidth / maxW, window.innerHeight / maxH, 1);
+canvas.width = maxW;
+canvas.height = maxH;
+canvas.style.width = maxW * scale + 'px';
+canvas.style.height = maxH * scale + 'px';
+
+// Pixel art helper - draw pixel-perfect rectangles
+const PX = 4; // pixel size
+function px(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(Math.round(x) * PX, Math.round(y) * PX, w * PX, h * PX);
+}
+
+// NES-inspired palette
+const colors = {
+  bg: '#1B1B2F',
+  bgLight: '#252545',
+  wall: '#3D3D6B',
+  wallLight: '#5555A0',
+  paper: '#FCF6BD',
+  paperDark: '#E8D88C',
+  paperFold: '#D4C478',
+  bin: '#8B5E3C',
+  binDark: '#6B4423',
+  binLight: '#A87C5A',
+  binRim: '#C49A6C',
+  accent: '#FF6B6B',
+  accentDark: '#CC4444',
+  success: '#A8E6CF',
+  successDark: '#7BC5A0',
+  text: '#FCF6BD',
+  textDark: '#8B8B6B',
+  floor: '#2D2D50',
+  floorLine: '#3D3D6B',
+};
+
+let score = 0;
+let bestScore = 0;
+let ballX = 200, ballY = 520;
+let ballVX = 0, ballVY = 0;
+let thrown = false;
+let landed = false;
+let landedTime = 0;
+let dragging = false;
+let dragStartX = 0, dragStartY = 0;
+let dragEndX = 0, dragEndY = 0;
+let trail = [];
+let particles = [];
+let binX = 200, binY = 140;
+let scorePopups = [];
+let time = 0;
+let screenShake = 0;
+let frame = 0;
+
+function drawPixelRect(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(
+    Math.round(x / PX) * PX,
+    Math.round(y / PX) * PX,
+    Math.round(w / PX) * PX,
+    Math.round(h / PX) * PX
+  );
+}
+
+function drawPixelText(text, x, y, size, color) {
+  ctx.fillStyle = color;
+  ctx.font = `bold ${size}px monospace`;
+  ctx.textAlign = 'center';
+  // Pixel-snap position
+  ctx.fillText(text, Math.round(x), Math.round(y));
+}
+
+function drawBg() {
+  ctx.fillStyle = colors.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Back wall with brick pattern
+  ctx.fillStyle = colors.bgLight;
+  ctx.fillRect(0, 0, canvas.width, 400);
+
+  // Brick lines
+  ctx.fillStyle = colors.wall;
+  for (let row = 0; row < 10; row++) {
+    const y = row * 40;
+    ctx.fillRect(0, y, canvas.width, 2);
+    const offset = row % 2 === 0 ? 0 : 40;
+    for (let col = 0; col < 6; col++) {
+      ctx.fillRect(col * 80 + offset, y, 2, 40);
+    }
+  }
+
+  // Floor
+  ctx.fillStyle = colors.floor;
+  ctx.fillRect(0, 400, canvas.width, 300);
+
+  // Floor tiles
+  ctx.fillStyle = colors.floorLine;
+  for (let i = 0; i < 10; i++) {
+    ctx.fillRect(0, 400 + i * 32, canvas.width, 2);
+  }
+
+  // Desk/shelf
+  ctx.fillStyle = '#4A3728';
+  ctx.fillRect(0, 192, canvas.width, 12);
+  ctx.fillStyle = '#5C4833';
+  ctx.fillRect(0, 188, canvas.width, 6);
+}
+
+function drawBin() {
+  const bx = Math.round(binX);
+  const by = Math.round(binY);
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  drawPixelRect(bx - 28, by + 44, 56, 8, 'rgba(0,0,0,0.3)');
+
+  // Bin body
+  drawPixelRect(bx - 28, by - 36, 56, 76, colors.binDark);
+  drawPixelRect(bx - 24, by - 36, 48, 76, colors.bin);
+
+  // Highlight
+  drawPixelRect(bx - 20, by - 32, 8, 64, colors.binLight);
+
+  // Rim
+  drawPixelRect(bx - 32, by - 40, 64, 8, colors.binRim);
+  drawPixelRect(bx - 28, by - 44, 56, 8, colors.bin);
+
+  // Inner
+  drawPixelRect(bx - 24, by - 38, 48, 12, '#1B1B2F');
+
+  // Metal bands
+  drawPixelRect(bx - 28, by - 8, 56, 4, colors.binDark);
+  drawPixelRect(bx - 28, by + 20, 56, 4, colors.binDark);
+}
+
+function drawPaperBall(x, y, rot) {
+  const bx = Math.round(x);
+  const by = Math.round(y);
+  const bobY = thrown ? 0 : Math.round(Math.sin(time * 3) * 3);
+
+  // Crumpled paper ball (pixel art style)
+  drawPixelRect(bx - 12, by - 8 + bobY, 24, 20, colors.paperDark);
+  drawPixelRect(bx - 8, by - 12 + bobY, 16, 24, colors.paper);
+  drawPixelRect(bx - 12, by - 4 + bobY, 24, 12, colors.paper);
+
+  // Creases
+  drawPixelRect(bx - 4, by - 8 + bobY, 4, 4, colors.paperFold);
+  drawPixelRect(bx + 4, by + bobY, 4, 4, colors.paperFold);
+  drawPixelRect(bx - 8, by + 4 + bobY, 4, 4, colors.paperFold);
+
+  // Highlight
+  drawPixelRect(bx - 4, by - 8 + bobY, 4, 4, '#FFFFFF');
+}
+
+function drawTrail() {
+  if (trail.length < 2) return;
+  trail.forEach((p, i) => {
+    const alpha = i / trail.length;
+    ctx.globalAlpha = alpha * 0.4;
+    const size = Math.max(2, alpha * 8);
+    drawPixelRect(p.x - size/2, p.y - size/2, size, size, colors.paperDark);
+  });
+  ctx.globalAlpha = 1;
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    const size = Math.max(PX, Math.round(p.size / PX) * PX);
+    drawPixelRect(p.x - size/2, p.y - size/2, size, size, p.color);
+  });
+  ctx.globalAlpha = 1;
+}
+
+function drawDragLine() {
+  if (!dragging) return;
+  const dx = dragStartX - dragEndX;
+  const dy = dragStartY - dragEndY;
+  const power = Math.min(Math.sqrt(dx * dx + dy * dy) / 150, 1);
+
+  // Pixel arrow
+  const steps = Math.floor(power * 8) + 2;
+  for (let i = 0; i < steps; i++) {
+    const t = i / steps;
+    const px = ballX + dx * 0.5 * t;
+    const py = ballY + dy * 0.5 * t;
+    ctx.globalAlpha = 0.3 + power * 0.5;
+    drawPixelRect(px - 2, py - 2, 4, 4, colors.accent);
+  }
+  ctx.globalAlpha = 1;
+
+  // Power meter
+  const meterX = 20;
+  const meterY = 500;
+  const meterH = 120;
+  drawPixelRect(meterX, meterY - meterH, 16, meterH, '#1B1B2F');
+  drawPixelRect(meterX + 2, meterY - meterH + 2, 12, meterH - 4, colors.bgLight);
+
+  const fillH = Math.round(power * (meterH - 8));
+  const fillColor = power > 0.8 ? colors.accent : power > 0.5 ? colors.text : colors.success;
+  drawPixelRect(meterX + 4, meterY - 4 - fillH, 8, fillH, fillColor);
+
+  drawPixelText('PWR', meterX + 8, meterY + 16, 10, colors.textDark);
+}
+
+function drawScore() {
+  // Score box
+  drawPixelRect(140, 620, 120, 60, colors.bgLight);
+  drawPixelRect(142, 622, 116, 56, colors.bg);
+
+  drawPixelText(String(score).padStart(4, '0'), 200, 660, 32, colors.text);
+  drawPixelText('SCORE', 200, 676, 10, colors.textDark);
+
+  // Best
+  if (bestScore > 0) {
+    drawPixelText(`BEST ${String(bestScore).padStart(4, '0')}`, 200, 616, 10, colors.textDark);
+  }
+
+  // Style label
+  drawPixelText('RETRO / PIXEL', 200, 30, 14, colors.accent);
+}
+
+function drawScorePopups() {
+  scorePopups.forEach(p => {
+    ctx.globalAlpha = p.life;
+    drawPixelText(p.text, p.x, p.y, 20, p.color || colors.success);
+  });
+  ctx.globalAlpha = 1;
+}
+
+// Scanline effect
+function drawScanlines() {
+  ctx.fillStyle = 'rgba(0,0,0,0.05)';
+  for (let y = 0; y < canvas.height; y += 4) {
+    ctx.fillRect(0, y, canvas.width, 2);
+  }
+}
+
+function spawnParticles(x, y, count, pColors) {
+  const cols = pColors || [colors.success, colors.successDark, colors.text, colors.accent];
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+    const speed = 1.5 + Math.random() * 3;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 1,
+      size: PX * (1 + Math.floor(Math.random() * 2)),
+      life: 1,
+      color: cols[Math.floor(Math.random() * cols.length)],
+    });
+  }
+}
+
+function resetBall() {
+  thrown = false;
+  landed = false;
+  ballX = 160 + Math.random() * 80;
+  ballY = 520;
+  ballVX = 0;
+  ballVY = 0;
+  trail = [];
+  binX = 80 + Math.random() * 240;
+}
+
+function update(dt) {
+  time += dt;
+  frame++;
+
+  if (screenShake > 0) screenShake *= 0.85;
+  if (screenShake < 0.5) screenShake = 0;
+
+  if (thrown && !landed) {
+    ballVY += 300 * dt;
+    ballX += ballVX * dt;
+    ballY += ballVY * dt;
+
+    if (frame % 2 === 0) trail.push({ x: ballX, y: ballY });
+    if (trail.length > 15) trail.shift();
+
+    if (ballY > binY - 30 && ballY < binY + 10 &&
+        ballX > binX - 22 && ballX < binX + 22) {
+      landed = true;
+      landedTime = 0;
+      score++;
+      if (score > bestScore) bestScore = score;
+      screenShake = 6;
+      spawnParticles(binX, binY - 20, 16);
+      scorePopups.push({ x: binX, y: binY - 60, life: 1, text: '+1!', color: colors.success });
+    }
+
+    if (ballY > 750 || ballX < -50 || ballX > 450) {
+      resetBall();
+    }
+  }
+
+  if (landed) {
+    landedTime += dt;
+    if (landedTime > 1.0) resetBall();
+  }
+
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 2 * dt; // particles have gravity too
+    p.life -= dt * 1.8;
+  });
+  particles = particles.filter(p => p.life > 0);
+
+  scorePopups.forEach(p => {
+    p.y -= 40 * dt;
+    p.life -= dt * 1.2;
+  });
+  scorePopups = scorePopups.filter(p => p.life > 0);
+}
+
+function draw() {
+  ctx.save();
+  if (screenShake > 0) {
+    ctx.translate(
+      Math.round((Math.random() - 0.5) * screenShake / PX) * PX,
+      Math.round((Math.random() - 0.5) * screenShake / PX) * PX
+    );
+  }
+
+  drawBg();
+  drawTrail();
+  drawBin();
+  drawDragLine();
+
+  if (!landed) {
+    drawPaperBall(ballX, ballY, 0);
+  }
+
+  drawParticles();
+  drawScorePopups();
+  drawScore();
+  drawScanlines();
+
+  if (!thrown && !dragging) {
+    ctx.globalAlpha = 0.4 + Math.sin(time * 3) * 0.3;
+    drawPixelText('< DRAG TO THROW >', 200, 576, 12, colors.textDark);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+}
+
+let lastTime = 0;
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  update(dt);
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const touch = e.touches ? e.touches[0] : e;
+  return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
+}
+
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onStart(getPos(e)); }, { passive: false });
+canvas.addEventListener('mousedown', e => onStart(getPos(e)));
+canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(getPos(e)); }, { passive: false });
+canvas.addEventListener('mousemove', e => { if (dragging) onMove(getPos(e)); });
+canvas.addEventListener('touchend', e => { e.preventDefault(); onEnd(); }, { passive: false });
+canvas.addEventListener('mouseup', () => onEnd());
+
+function onStart(pos) {
+  if (thrown) return;
+  const dx = pos.x - ballX, dy = pos.y - ballY;
+  if (dx * dx + dy * dy < 2500) {
+    dragging = true;
+    dragStartX = pos.x; dragStartY = pos.y;
+    dragEndX = pos.x; dragEndY = pos.y;
+  }
+}
+
+function onMove(pos) {
+  if (!dragging) return;
+  dragEndX = pos.x; dragEndY = pos.y;
+}
+
+function onEnd() {
+  if (!dragging) return;
+  dragging = false;
+  const dx = dragStartX - dragEndX;
+  const dy = dragStartY - dragEndY;
+  const power = Math.sqrt(dx * dx + dy * dy);
+  if (power > 20) {
+    thrown = true;
+    ballVX = dx * 2.5;
+    ballVY = dy * 2.5;
+    spawnParticles(ballX, ballY, 8, [colors.paper, colors.paperDark]);
+  }
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
