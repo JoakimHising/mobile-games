@@ -10,6 +10,7 @@ const entryPoints = {
   'goalie': resolve(__dirname, 'src/standalone/goalie.html'),
   'roof-hopper': resolve(__dirname, 'src/standalone/roof-hopper.html'),
   'dart-streak': resolve(__dirname, 'src/standalone/dart-streak.html'),
+  'tower-stacker': resolve(__dirname, 'src/standalone/tower-stacker.html'),
 };
 
 export default defineConfig({

@@ -38,7 +38,7 @@ Boxing-dodge. Swipe för att ducka slag som kommer mot dig. Hastigheten ökar ti
 
 ## Stacking / Precision
 
-### Tower Stacker
+### Tower Stacker ✅ KLAR
 Block svingar över skärmen, tap för att droppa. Överhäng skärs bort. Se hur högt du kan bygga innan det blir för smalt. Bevisad viral mekanik.
 
 ### Pint Pour
@@ -55,7 +55,7 @@ Luta för att hälla öl/läsk i glas. Fyll till linjen utan att det rinner öve
 | ✅ | Goalie | Klar | ⭐⭐⭐⭐⭐ |
 | ✅ | Roof Hopper | Klar | ⭐⭐⭐⭐ |
 | ✅ | Dart Streak | Klar | ⭐⭐⭐⭐ |
-| 5 | Tower Stacker | Enkel | ⭐⭐⭐⭐ |
+| ✅ | Tower Stacker | Klar | ⭐⭐⭐⭐ |
 | 6 | Perfect Serve | Medium | ⭐⭐⭐ |
 | 7 | Hole in One | Medium | ⭐⭐⭐ |
 | 8 | Skee-Ball Forever | Medium | ⭐⭐⭐ |
