@@ -7,24 +7,330 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0A0A1A">
 <title>Arcade Games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Russo+One&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+
   html, body {
     background: #0A0A1A;
     width: 100%; height: 100%;
     overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    touch-action: none;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-user-select: none;
     user-select: none;
+    color: #fff;
   }
-  canvas { display: block; }
+
+  /* ── Menu screen ── */
+  #menu-screen {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── Animated background ── */
+  .menu-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(180deg, #0F0C29, #1A1A3E, #0A0A1A);
+    overflow: hidden;
+  }
+
+  /* CRT scan-line overlay */
+  .menu-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(255, 255, 255, 0.015) 2px,
+      rgba(255, 255, 255, 0.015) 4px
+    );
+    pointer-events: none;
+  }
+
+  /* Glow blob — primary */
+  .menu-bg .glow-primary {
+    position: absolute;
+    width: 300px;
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 107, 53, 0.18), transparent 70%);
+    top: -60px;
+    right: -80px;
+    animation: driftPrimary 12s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+
+  /* Glow blob — accent */
+  .menu-bg .glow-accent {
+    position: absolute;
+    width: 350px;
+    height: 350px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 245, 212, 0.12), transparent 70%);
+    bottom: -80px;
+    left: -100px;
+    animation: driftAccent 14s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+
+  @keyframes driftPrimary {
+    0%   { transform: translate(0, 0); }
+    100% { transform: translate(-60px, 80px); }
+  }
+  @keyframes driftAccent {
+    0%   { transform: translate(0, 0); }
+    100% { transform: translate(70px, -60px); }
+  }
+
+  /* ── Header ── */
+  .menu-header {
+    flex-shrink: 0;
+    text-align: center;
+    padding: 48px 20px 20px;
+    padding-top: calc(48px + env(safe-area-inset-top, 0px));
+  }
+
+  .arcade-title {
+    font-family: 'Russo One', sans-serif;
+    font-size: 3.5rem;
+    letter-spacing: 0.15em;
+    color: #fff;
+    text-shadow:
+      0 0 10px rgba(255, 107, 53, 0.6),
+      0 0 30px rgba(255, 107, 53, 0.3),
+      0 0 60px rgba(255, 107, 53, 0.15);
+    animation: titlePulse 3s ease-in-out infinite;
+  }
+
+  @keyframes titlePulse {
+    0%, 100% {
+      text-shadow:
+        0 0 10px rgba(255, 107, 53, 0.6),
+        0 0 30px rgba(255, 107, 53, 0.3),
+        0 0 60px rgba(255, 107, 53, 0.15);
+    }
+    50% {
+      text-shadow:
+        0 0 15px rgba(255, 107, 53, 0.8),
+        0 0 40px rgba(255, 107, 53, 0.5),
+        0 0 80px rgba(255, 107, 53, 0.25);
+    }
+  }
+
+  .arcade-subtitle {
+    font-size: 0.875rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 6px;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Card list ── */
+  .card-list {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    padding: 8px 20px 20px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 2%,
+      black 96%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 2%,
+      black 96%,
+      transparent 100%
+    );
+  }
+
+  /* Hide scrollbar */
+  .card-list::-webkit-scrollbar { display: none; }
+  .card-list { scrollbar-width: none; }
+
+  /* ── Card ── */
+  .game-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 16px;
+    border: none;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid color-mix(in srgb, var(--card-color) 25%, transparent);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+    outline: none;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    /* Entrance animation */
+    opacity: 0;
+    animation: cardSlideIn 0.4s ease-out forwards;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Left accent bar */
+  .game-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--card-color);
+    box-shadow: 0 0 10px var(--card-color), 0 0 20px color-mix(in srgb, var(--card-color) 40%, transparent);
+    border-radius: 4px 0 0 4px;
+    transition: box-shadow 0.2s;
+  }
+
+  @keyframes cardSlideIn {
+    from {
+      opacity: 0;
+      transform: translateX(60px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* ── Hover (pointer devices only) ── */
+  @media (hover: hover) {
+    .game-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: color-mix(in srgb, var(--card-color) 50%, transparent);
+    }
+    .game-card:hover .card-arrow {
+      transform: translateX(4px);
+    }
+  }
+
+  /* ── Active / press ── */
+  .game-card:active {
+    transform: scale(0.97);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--card-color);
+  }
+  .game-card:active::before {
+    box-shadow: 0 0 16px var(--card-color), 0 0 32px color-mix(in srgb, var(--card-color) 60%, transparent);
+  }
+
+  /* ── Focus-visible ── */
+  .game-card:focus-visible {
+    outline: 2px solid var(--card-color);
+    outline-offset: 2px;
+  }
+
+  /* ── Card internals ── */
+  .card-icon {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .card-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card-name {
+    font-family: 'Russo One', sans-serif;
+    font-size: 1.05rem;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-desc {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 2px;
+  }
+
+  .card-best {
+    font-family: 'Russo One', sans-serif;
+    font-size: 0.7rem;
+    color: #FEE440;
+    margin-top: 4px;
+    letter-spacing: 0.02em;
+  }
+
+  .card-arrow {
+    flex-shrink: 0;
+    font-size: 1.1rem;
+    color: var(--card-color);
+    transition: transform 0.2s;
+  }
+
+  /* ── Footer ── */
+  .menu-footer {
+    flex-shrink: 0;
+    text-align: center;
+    padding: 10px 20px 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.25);
+  }
+
+  /* ── Game canvas ── */
+  #game {
+    display: none;
+  }
 </style>
 </head>
 <body>
+
+<div id="menu-screen">
+  <div class="menu-bg">
+    <div class="glow-primary"></div>
+    <div class="glow-accent"></div>
+  </div>
+
+  <header class="menu-header">
+    <h1 class="arcade-title">ARCADE</h1>
+    <p class="arcade-subtitle">Choose a game</p>
+  </header>
+
+  <div class="card-list" id="card-list"></div>
+
+  <footer class="menu-footer">
+    <span id="game-count"></span>
+  </footer>
+</div>
+
 <canvas id="game"></canvas>
+
 <script type="module">
 import { createMenu } from './menu.js';
 import '../capacitor-bridge.js';
