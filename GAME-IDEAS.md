@@ -30,7 +30,7 @@ Swipe för att rulla en boll uppför rampen. Klassiskt arkad-skee-ball men high-
 ### Goalie
 Bollar flyger mot mål från alla vinklar. Swipe för att dyka och rädda. Hastighet och skruv ökar. Hur många kan du rädda i rad?
 
-### Juggle King
+### Juggle King ✅ KLAR
 Tap på en fotboll för att hålla den uppe. Gravitationen ökar, vind blåser, ibland två bollar samtidigt. Klassisk keepie-uppie.
 
 ### Punch Out
@@ -51,7 +51,7 @@ Luta för att hälla öl/läsk i glas. Fyll till linjen utan att det rinner öve
 | Prio | Spel | Svårighet att bygga | Viral potential |
 |------|------|---------------------|-----------------|
 | ✅ | Bin It | Klar | ⭐⭐⭐⭐ |
-| 1 | Juggle King | Enkel | ⭐⭐⭐⭐⭐ |
+| ✅ | Juggle King | Klar | ⭐⭐⭐⭐⭐ |
 | 2 | Goalie | Enkel | ⭐⭐⭐⭐⭐ |
 | 3 | Roof Hopper | Enkel | ⭐⭐⭐⭐ |
 | 4 | Dart Streak | Enkel | ⭐⭐⭐⭐ |
