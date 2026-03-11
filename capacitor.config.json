@@ -1,0 +1,5 @@
+{
+  "appId": "com.arcadegames.app",
+  "appName": "Arcade Games",
+  "webDir": "dist/arcade"
+}

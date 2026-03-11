@@ -1,0 +1,40 @@
+{
+  "name": "mobile-games",
+  "version": "1.0.0",
+  "description": "",
+  "main": "engine.js",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build:arcade": "BUILD_MODE=arcade vite build",
+    "build:bin-it": "BUILD_MODE=bin-it vite build",
+    "build:juggle-king": "BUILD_MODE=juggle-king vite build",
+    "cap:sync:arcade": "npm run build:arcade && cp configs/capacitor.arcade.json capacitor.config.json && npx cap sync",
+    "cap:sync:bin-it": "npm run build:bin-it && cp configs/capacitor.bin-it.json capacitor.config.json && npx cap sync",
+    "cap:sync:juggle-king": "npm run build:juggle-king && cp configs/capacitor.juggle-king.json capacitor.config.json && npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:33169/git/JoakimHising/mobile-games"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
+    "@capacitor/haptics": "^8.0.1",
+    "@capacitor/ios": "^8.2.0",
+    "@capacitor/keyboard": "^8.0.1",
+    "@capacitor/share": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.1"
+  }
+}

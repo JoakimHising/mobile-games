@@ -1,0 +1,19 @@
+{
+  "appId": "com.arcadegames.binit",
+  "appName": "Bin It!",
+  "webDir": "dist/bin-it",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#0A0A1A",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0A0A1A"
+    }
+  }
+}
